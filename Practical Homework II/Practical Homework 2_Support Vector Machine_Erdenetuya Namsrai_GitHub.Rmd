@@ -1,0 +1,862 @@
+---
+title: "Practical Homework 2: Support Vector Machines"
+author: "Erdenetuya Namsrai"
+date: "2025-04-14"
+output: html_document
+---
+
+
+# 1. Load libraries 
+
+```{r}
+library(e1071)
+library(caret)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(gridExtra)
+library(ROSE)
+library(DMwR2)
+library(smotefamily)
+library(corrplot)
+library(readr)
+library(doParallel)
+```
+
+
+# 2. Load Dataset and Perform Data Preprocessing
+
+```{r}
+data <- read.csv("D:\\Data Science Master in USA\\Spring_2025\\DATA 5322 Statistical Machine Learning II\\Homework\\Practical Homework 2_Support Vector Machines\\nhis_2022.csv")
+
+df_nhis <- data
+dim(df_nhis)
+head(df_nhis, 3)
+```
+
+
+This dataset contains 35115 records and 48 variables. 
+
+2.1 Filter only adults (age >= 18)
+
+```{r}
+df_nhis <- df_nhis %>% filter(AGE >= 18)
+dim(df_nhis)
+```
+
+
+After filtering for age ≥ 18, the dataset contains 27,651 records and 49 variables.
+
+2.2 Create new target variable "Diabetes"
+
+```{r}
+# Create new target variable: Diabetes
+df_nhis <- df_nhis %>%
+  mutate(Diabetes = ifelse(DIABETICEV == 1, 1, 0)) %>%
+  select(-DIABETICEV)       
+
+dim(df_nhis)
+head(df_nhis, 3)
+```
+
+
+2.3 Remove unnecessary Survey info (variables 1–12) and Disease indicators (CANCEREV, CHEARTDIEV, HEARTATTEV, STROKEV)
+
+```{r}
+variables_to_remove <- c("YEAR", "SERIAL", "STRATA", "PSU", "NHISHID", 
+                         "PERNUM", "NHISPID", "HHX", "SAMPWEIGHT", 
+                         "ASTATFLG", "CSTATFLG", "REGION", "CANCEREV", 
+                         "CHEARTDIEV", "HEARTATTEV", "STROKEV")
+
+# 2. Remove only the columns that exist in df_adults
+df_nhis <- df_nhis %>% select(-any_of(variables_to_remove))
+
+# 3. View
+dim(df_nhis)
+head(df_nhis, 3)
+```
+
+
+2.4 Convert categorical variables to factor
+
+```{r}
+# SEX
+df_nhis$SEX <- as.factor(df_nhis$SEX)
+
+# HINOTCOVE
+df_nhis$HINOTCOVE <- as.factor(df_nhis$HINOTCOVE)
+
+head(df_nhis, 3)
+```
+
+
+2.5 Feature Selection and Variable Exploration
+
+```{r}
+# 1. Select numeric_variables
+numeric_variables <- df_nhis %>% select(where(is.numeric))
+
+# 2. Remove rows with missing values
+numeric_clean <- na.omit(numeric_variables)
+
+# 3. Compute correlation matrix
+correlations <- cor(numeric_clean)
+
+# 4. Extract correlation with the Diabetes column
+diabetes_corr <- correlations[, "Diabetes"]
+
+# 5. Select the top 10 most correlated variables
+top10 <- sort(abs(diabetes_corr), decreasing = TRUE)[2:11]
+
+# 6. Print the top 10 variable names and correlation values
+print(top10)
+```
+
+
+```{r}
+# 1. Extract names of top 10 most correlated variables
+top10_names <- names(top10)
+
+# 2. Subset df_nhis to include only top 10 variables + target
+df_model <- df_nhis %>%
+  select(all_of(top10_names), Diabetes) %>%
+  na.omit()
+
+dim(df_model)
+head(df_model, 3)
+```
+
+
+# 3.Linear SVM 
+
+# 3.1 Linear SVM with Class Weights and Manual Metric Calculation
+
+```{r}
+# 1. Prepare the model dataset (ensure both classes exist)
+df_model <- df_nhis %>%
+  mutate(DiabetesTarget = as.factor(Diabetes)) %>%
+  select(DiabetesTarget, HOURSWRK, EDUC, POVERTY, AGE, VIG10DMIN, MOD10DMIN, WEIGHT, BMICALC, HEIGHT, ALCANYNO ) %>%
+  drop_na()
+
+# Check class distribution
+table(df_model$DiabetesTarget)
+
+# 2. Train-Test Split
+set.seed(123)
+train_index <- createDataPartition(df_model$DiabetesTarget, p = 0.7, list = FALSE)
+train_data <- df_model[train_index, ]
+test_data  <- df_model[-train_index, ]
+
+# 3. Compute class weights (inverse of class frequency)
+class_weights <- table(train_data$DiabetesTarget)
+inv_weights <- as.numeric(1 / class_weights)
+names(inv_weights) <- names(class_weights)
+
+# 4. Train Linear SVM with class weights
+svm_linear_weighted <- svm(
+  DiabetesTarget ~ ., 
+  data = train_data,
+  kernel = "linear",
+  cost = 1,
+  class.weights = inv_weights,
+  scale = TRUE
+)
+summary(svm_linear_weighted)
+
+# 5. Predict on test data
+pred_weighted <- predict(svm_linear_weighted, newdata = test_data)
+
+# 6. Confusion Matrix (for Accuracy)
+confusion_matrix_linear <- confusionMatrix(pred_weighted, test_data$DiabetesTarget)
+print(confusion_matrix_linear)
+
+# 7. Manual Calculation of Precision, Recall, F1-Score
+TP <- sum(pred_weighted == "1" & test_data$DiabetesTarget == "1")
+FP <- sum(pred_weighted == "1" & test_data$DiabetesTarget == "0")
+TN <- sum(pred_weighted == "0" & test_data$DiabetesTarget == "0")
+FN <- sum(pred_weighted == "0" & test_data$DiabetesTarget == "1")
+
+# Compute metrics (handling divide-by-zero)
+accuracy_linear  <- mean(pred_weighted == test_data$DiabetesTarget)
+precision_linear <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_linear    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_linear  <- ifelse((precision_linear + recall_linear) == 0, 0, 
+                           2 * precision_linear * recall_linear / (precision_linear + recall_linear))
+
+# 8. Results
+cat("Accuracy :", round(accuracy_linear, 4), "\n")
+cat("Precision:", round(precision_linear, 4), "\n")
+cat("Recall   :", round(recall_linear, 4), "\n")
+cat("F1-Score :", round(f1_score_linear, 4), "\n")
+```
+
+
+# 3.2 Tuned Linear SVM with Class Weights and Manual Metric Calculation
+
+```{r}
+# 1. Load parallel library
+library(doParallel)
+
+# 2. Prepare Corrected Class Weights
+class_weights <- c('0' = 1, '1' = 4)   # Adjusted for faster convergence
+
+# 3. Set Smaller Cost Range (fewer values)
+cost_values <- c(0.1, 1)
+
+# 4. Parallel Processing Setup
+cl <- makeCluster(2)                  # Correct function name with capital "C"
+registerDoParallel(cl)
+
+# 5. Tune Linear SVM with Smaller Grid + Faster CV
+tuned_linear_svm <- tune(
+  svm,
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "linear",
+  ranges = list(cost = cost_values),
+  scale = TRUE,
+  class.weights = class_weights,
+  tunecontrol = tune.control(cross = 3, sampling = "cross", performances = TRUE)  # 3-fold CV
+)
+
+# 6. Stop Parallel Cluster
+stopCluster(cl)
+```
+
+
+```{r}
+# 7. Extract Best Model
+best_model <- tuned_linear_svm$best.model
+summary(best_model)
+```
+
+```{r}
+# 8. Predict on Test Data
+pred_best <- predict(best_model, newdata = test_data)
+
+# 9. Confusion Matrix and Metrics
+conf_matrix_linear_tuned <- confusionMatrix(pred_best, test_data$DiabetesTarget)
+print(conf_matrix_linear_tuned)
+
+# 10. Manual Metric Calculation
+TP <- sum(pred_best == "1" & test_data$DiabetesTarget == "1")
+FP <- sum(pred_best == "1" & test_data$DiabetesTarget == "0")
+TN <- sum(pred_best == "0" & test_data$DiabetesTarget == "0")
+FN <- sum(pred_best == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_linear_tuned  <- mean(pred_best == test_data$DiabetesTarget)
+precision_linear_tuned <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_linear_tuned    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_linear_tuned  <- ifelse((precision_linear_tuned + recall_linear_tuned) == 0, 0, 
+                                 2 * precision_linear_tuned * recall_linear_tuned / (precision_linear_tuned + recall_linear_tuned))
+
+# 11. Results
+cat("Accuracy :", round(accuracy_linear_tuned, 4), "\n")
+cat("Precision:", round(precision_linear_tuned, 4), "\n")
+cat("Recall   :", round(recall_linear_tuned, 4), "\n")
+cat("F1-Score :", round(f1_score_linear_tuned, 4), "\n")
+```
+
+
+
+# 3.3 Training and Test Errors of Linear SVM Models
+
+```{r}
+# 1. Training and Test Error for original (weighted) Linear SVM
+train_pred_linear <- predict(svm_linear_weighted, newdata = train_data)
+test_pred_linear  <- predict(svm_linear_weighted, newdata = test_data)
+
+train_error_linear <- mean(train_pred_linear != train_data$DiabetesTarget)
+test_error_linear  <- mean(test_pred_linear  != test_data$DiabetesTarget)
+
+# 2. Training and Test Error for Tuned Linear SVM
+train_pred_linear_tuned <- predict(best_model, newdata = train_data)
+test_pred_linear_tuned  <- predict(best_model, newdata = test_data)
+
+train_error_linear_tuned <- mean(train_pred_linear_tuned != train_data$DiabetesTarget)
+test_error_linear_tuned  <- mean(test_pred_linear_tuned  != test_data$DiabetesTarget)
+
+# 3. Print results
+cat("Linear SVM (Weighted):\n")
+cat("  Training Error:", round(train_error_linear, 4), "\n")
+cat("  Test Error    :", round(test_error_linear, 4), "\n\n")
+
+cat("Linear SVM (Tuned):\n")
+cat("  Training Error:", round(train_error_linear_tuned, 4), "\n")
+cat("  Test Error    :", round(test_error_linear_tuned, 4), "\n")
+```
+
+
+
+# 3.4 Performance Evaluation of Linear SVM and Tuned Linear SVM
+
+```{r}
+# 1. Compute TP, FP, TN, FN for Linear SVM
+TP_linear <- sum(pred_weighted == "1" & test_data$DiabetesTarget == "1")
+FP_linear <- sum(pred_weighted == "1" & test_data$DiabetesTarget == "0")
+TN_linear <- sum(pred_weighted == "0" & test_data$DiabetesTarget == "0")
+FN_linear <- sum(pred_weighted == "0" & test_data$DiabetesTarget == "1")
+
+# 2. Compute metrics for Linear SVM
+accuracy_linear  <- mean(pred_weighted == test_data$DiabetesTarget)
+precision_linear <- ifelse((TP_linear + FP_linear) == 0, 0, TP_linear / (TP_linear + FP_linear))
+recall_linear    <- ifelse((TP_linear + FN_linear) == 0, 0, TP_linear / (TP_linear + FN_linear))
+f1_score_linear  <- ifelse((precision_linear + recall_linear) == 0, 0, 
+                           2 * precision_linear * recall_linear / (precision_linear + recall_linear))
+
+# 3. Compute TP, FP, TN, FN for Tuned Linear SVM
+TP_linear_tuned <- sum(pred_best == "1" & test_data$DiabetesTarget == "1")
+FP_linear_tuned <- sum(pred_best == "1" & test_data$DiabetesTarget == "0")
+TN_linear_tuned <- sum(pred_best == "0" & test_data$DiabetesTarget == "0")
+FN_linear_tuned <- sum(pred_best == "0" & test_data$DiabetesTarget == "1")
+
+# 4. Compute metrics for Tuned Linear SVM
+accuracy_linear_tuned  <- mean(pred_best == test_data$DiabetesTarget)
+precision_linear_tuned <- ifelse((TP_linear_tuned + FP_linear_tuned) == 0, 0, TP_linear_tuned / (TP_linear_tuned + FP_linear_tuned))
+recall_linear_tuned    <- ifelse((TP_linear_tuned + FN_linear_tuned) == 0, 0, TP_linear_tuned / (TP_linear_tuned + FN_linear_tuned))
+f1_score_linear_tuned  <- ifelse((precision_linear_tuned + recall_linear_tuned) == 0, 0, 
+                    2 * precision_linear_tuned * recall_linear_tuned / (precision_linear_tuned + recall_linear_tuned))
+
+
+# 5. Combine results into a data frame
+metrics_df <- data.frame(
+  Metric = c("Accuracy", "Precision", "Recall", "F1-Score"),
+  Linear_SVM = c(accuracy_linear, precision_linear, recall_linear, f1_score_linear),
+  Tuned_Linear_SVM = c(accuracy_linear_tuned, precision_linear_tuned, recall_linear_tuned, f1_score_linear_tuned)
+)
+
+# 6. Convert to long format for ggplot
+metrics_long <- pivot_longer(metrics_df, cols = -Metric, names_to = "Model", values_to = "Value")
+
+# 7. Plot bar graph
+ggplot(metrics_long, aes(x = Metric, y = Value, fill = Model)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(title = "Comparison of Linear SVM vs Tuned Linear SVM",
+       y = "Score (%)",
+       x = "Metric") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +  # y-axis also as %
+  geom_text(aes(label = paste0(round(Value * 100, 1), "%")),    # label as percentage
+            position = position_dodge(width = 0.7),
+            vjust = -0.5,
+            size = 3.5) +
+  scale_fill_manual(values = c("#4A90E2", "#FF7F0E")) +   
+  theme(plot.title = element_text(hjust = 0.5))  
+```
+
+
+# 3.5 Compare Training and Test Error of Linear SVM and Tuned Linear SVM
+
+```{r}
+# 1. Create a dataframe for errors
+error_data <- data.frame(
+  Model = rep(c("Linear SVM (Weighted)", "Linear SVM (Tuned)"), each = 2),
+  ErrorType = rep(c("Training Error", "Test Error"), times = 2),
+  ErrorValue = c(train_error_linear, test_error_linear,
+                 train_error_linear_tuned, test_error_linear_tuned)
+)
+
+# 2. Plot
+ggplot(error_data, aes(x = Model, y = ErrorValue, fill = ErrorType)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(aes(label = paste0(round(ErrorValue * 100, 1), "%")),
+            position = position_dodge(width = 0.7),
+            vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = c("Training Error" = "#4A90E2",
+                               "Test Error" = "#E94B3C")) +
+  labs(title = "Training vs Test Error Comparison: Linear SVM Models",
+       x = "Model",
+       y = "Error (%)") +
+  theme_minimal() +
+  ylim(0, 1) +  # <- no + after ylim()
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.text.x = element_text(face = "bold"),
+    legend.title = element_blank(),
+    legend.position = "top"
+  )
+```
+
+
+# 4. Radial SVM
+
+# 4.1 Radial SVM with Class Weights and Manual Metric Calculation
+
+```{r}
+# 1. Train Radial SVM with class weights
+svm_radial_weighted <- svm(
+  DiabetesTarget ~ ., 
+  data = train_data,
+  kernel = "radial",       # Radial Basis Function kernel
+  cost = 1,
+  gamma = 0.1,             # Tune this if needed
+  class.weights = inv_weights,
+  scale = TRUE
+)
+
+summary(svm_radial_weighted)
+
+# 2. Predict on test data
+pred_radial <- predict(svm_radial_weighted, newdata = test_data)
+
+# 3. Confusion matrix for accuracy
+confusion_matrix_radial <- confusionMatrix(pred_radial, test_data$DiabetesTarget)
+print(confusion_matrix_radial)
+
+# 4. Manual metric calculation
+TP <- sum(pred_radial == "1" & test_data$DiabetesTarget == "1")
+FP <- sum(pred_radial == "1" & test_data$DiabetesTarget == "0")
+TN <- sum(pred_radial == "0" & test_data$DiabetesTarget == "0")
+FN <- sum(pred_radial == "0" & test_data$DiabetesTarget == "1")
+
+# Compute metrics
+accuracy_radial  <- mean(pred_radial == test_data$DiabetesTarget)
+precision_radial <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_radial    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_radial  <- ifelse((precision_radial + recall_radial) == 0, 0,
+                           2 * precision_radial * recall_radial / (precision_radial + recall_radial))
+
+# 5. Results
+cat("Radial SVM Accuracy :", round(accuracy_radial, 4), "\n")
+cat("Radial SVM Precision:", round(precision_radial, 4), "\n")
+cat("Radial SVM Recall   :", round(recall_radial, 4), "\n")
+cat("Radial SVM F1-Score :", round(f1_score_radial, 4), "\n")
+```
+
+
+# 4.2 Tuned Radial SVM with Class Weights and Manual Metric Calculation
+
+```{r}
+# 1. Train Radial SVM with tuned hyperparameters
+svm_radial_tuned <- svm(
+  DiabetesTarget ~ ., 
+  data = train_data,
+  kernel = "radial",
+  cost = 10,              # Increase penalty for misclassifying minority
+  gamma = 0.01,           # Try 0.01, 0.05, 0.1, 0.5 etc.
+  class.weights = inv_weights,
+  scale = TRUE
+)
+summary(svm_radial_tuned)
+
+# 2. Predict on training and test data
+train_pred_radial <- predict(svm_radial_tuned, newdata = train_data)
+test_pred_radial  <- predict(svm_radial_tuned, newdata = test_data)
+
+# 3. Training and Test Error
+train_error_radial <- mean(train_pred_radial != train_data$DiabetesTarget)
+test_error_radial  <- mean(test_pred_radial != test_data$DiabetesTarget)
+
+cat("Radial SVM (Tuned) Training Error:", round(train_error_radial, 4), "\n")
+cat("Radial SVM (Tuned) Test Error    :", round(test_error_radial, 4), "\n")
+
+# 4. Confusion matrix
+confusion_matrix_radial_tuned <- confusionMatrix(test_pred_radial, test_data$DiabetesTarget)
+print(confusion_matrix_radial_tuned)
+
+# 5. Manual Metrics
+TP <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "1")
+FP <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "0")
+TN <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "0")
+FN <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_radial_tuned  <- mean(test_pred_radial == test_data$DiabetesTarget)
+precision_radial_tuned <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_radial_tuned   <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_radial_tuned  <- ifelse((precision_radial_tuned + recall_radial_tuned) == 0, 0,
+                           2 * precision_radial_tuned * recall_radial_tuned / (precision_radial_tuned + recall_radial_tuned))
+
+# 6. Results
+cat("Radial SVM Accuracy :", round(accuracy_radial_tuned, 4), "\n")
+cat("Radial SVM Precision:", round(precision_radial_tuned, 4), "\n")
+cat("Radial SVM Recall   :", round(recall_radial_tuned, 4), "\n")
+cat("Radial SVM F1-Score :", round(f1_score_radial_tuned, 4), "\n")
+```
+
+
+# 4.3 Training and Test Errors of Radial SVM Models
+
+```{r}
+# 1. Predict on training and test data
+train_pred_radial_weighted <- predict(svm_radial_weighted, newdata = train_data)
+test_pred_radial_weighted  <- predict(svm_radial_weighted, newdata = test_data)
+
+# 2. Training and Test Error (Weighted Radial SVM)
+train_error_radial_weighted <- mean(train_pred_radial_weighted != train_data$DiabetesTarget)
+test_error_radial_weighted  <- mean(test_pred_radial_weighted != test_data$DiabetesTarget)
+
+cat("Weighted Radial SVM Training Error:", round(train_error_radial_weighted, 4), "\n")
+cat("Weighted Radial SVM Test Error    :", round(test_error_radial_weighted, 4), "\n")
+
+# 3. Predict on training and test data (Tuned Radial SVM)
+train_pred_radial_tuned <- predict(svm_radial_tuned, newdata = train_data)
+test_pred_radial_tuned  <- predict(svm_radial_tuned, newdata = test_data)
+
+# 4. Training and Test Error (Tuned Radial SVM)
+train_error_radial_tuned <- mean(train_pred_radial_tuned != train_data$DiabetesTarget)
+test_error_radial_tuned  <- mean(test_pred_radial_tuned != test_data$DiabetesTarget)
+
+cat("Tuned Radial SVM Training Error:", round(train_error_radial_tuned, 4), "\n")
+cat("Tuned Radial SVM Test Error    :", round(test_error_radial_tuned, 4), "\n")
+```
+
+
+# 4.4 Performance Evaluation of Radial SVM and Tuned Radial SVM
+
+```{r}
+# 1. Create a dataframe for metrics
+metrics_data <- data.frame(
+  Model = rep(c("Radial SVM", "Tuned Radial SVM"), each = 4),
+  Metric = rep(c("Accuracy", "Precision", "Recall", "F1-Score"), 2),
+  Value = c(accuracy_radial, precision_radial, recall_radial, f1_score_radial,
+            accuracy_radial_tuned, precision_radial_tuned, recall_radial_tuned, f1_score_radial_tuned)
+)
+
+# 2. Build the grouped bar chart with percentage labels
+ggplot(metrics_data, aes(x = Metric, y = Value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(aes(label = paste0(round(Value * 100, 1), "%")),   # <-- Show percentage
+            position = position_dodge(width = 0.7),
+            vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = c("#4A90E2", "#E94B3C")) + 
+  labs(title = "Radial SVM vs Tuned Radial SVM Metrics",
+       x = "Metric",
+       y = "Score (%)") + 
+  ylim(0, 1) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+# 4.5 Compare Training and Test Error of Radial SVM and Tuned Radial SVM
+
+```{r}
+# 1. Create a dataframe for plotting
+error_data <- data.frame(
+  Model = rep(c("Weighted Radial SVM", "Tuned Radial SVM"), each = 2),
+  ErrorType = rep(c("Training Error", "Test Error"), times = 2),
+  ErrorValue = c(train_error_radial_weighted, test_error_radial_weighted,
+                 train_error_radial_tuned, test_error_radial_tuned)
+)
+
+# 2. Plot the grouped bar chart
+ggplot(error_data, aes(x = Model, y = ErrorValue, fill = ErrorType)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(aes(label = paste0(round(ErrorValue * 100, 1), "%")),
+            position = position_dodge(width = 0.7),
+            vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = c("Training Error" = "#4A90E2",   # Blue for training error
+                               "Test Error" = "#E94B3C")) +    # Red for test error
+  labs(title = "Training vs Test Error Comparison: Radial SVM Models",
+       x = "Model",
+       y = "Error (%)") +
+  theme_minimal() +
+  ylim(0, 1) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+# 5. Polynomial SVM
+
+# 5.1 Polynomial SVM with Class Weights and Manual Metric Calculation
+
+```{r}
+# 1. Polynomial SVM 
+svm_poly <- svm(
+  DiabetesTarget ~ ., 
+  data = train_data,
+  kernel = "polynomial",
+  degree = 3,          # Set polynomial degree (e.g., 2, 3, 4)
+  cost = 1,            # Set penalty parameter (e.g., 0.1, 1, 10)
+  class.weights = inv_weights,
+  scale = TRUE
+)
+summary(svm_poly)
+
+# 2. Predict on test data
+pred_poly <- predict(svm_poly, newdata = test_data)
+
+# 3. Confusion Matrix and Evaluation
+conf_matrix_poly <- confusionMatrix(pred_poly, test_data$DiabetesTarget)
+print(conf_matrix_poly)
+
+# 4. Manual metric calculations
+TP <- sum(pred_poly == "1" & test_data$DiabetesTarget == "1")
+FP <- sum(pred_poly == "1" & test_data$DiabetesTarget == "0")
+TN <- sum(pred_poly == "0" & test_data$DiabetesTarget == "0")
+FN <- sum(pred_poly == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_poly  <- mean(pred_poly == test_data$DiabetesTarget)
+precision_poly <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_poly    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_poly  <- ifelse((precision_poly + recall_poly) == 0, 0,
+                    2 * precision_poly * recall_poly / (precision_poly + recall_poly))
+
+# 5. Results
+cat("Accuracy :", round(accuracy_poly, 4), "\n")
+cat("Precision:", round(precision_poly, 4), "\n")
+cat("Recall   :", round(recall_poly, 4), "\n")
+cat("F1-Score :", round(f1_score_poly, 4), "\n")
+```
+
+
+# 5.2 Tuned Polynomial SVM with Class Weights and Manual Metric Calculation
+
+```{r}
+# 1. Set up parallel backend
+num_cores <- detectCores() - 1
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# 2. Tune Polynomial SVM much faster
+tuned_poly <- tune(
+  svm,
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "polynomial",
+  ranges = list(
+    cost = c(1, 10),       # Fewer costs
+    degree = c(2, 3)       # Only degree 2 and 3 (degree 4 is very slow)
+  ),
+  scale = TRUE,
+  class.weights = inv_weights,
+  tunecontrol = tune.control(cross = 5)  # Only 5-fold CV
+)
+
+# 3. Stop cluster
+stopCluster(cl)
+```
+
+```{r}
+# 4. Best model
+best_poly_model <- tuned_poly$best.model
+summary(best_poly_model)
+```
+
+```{r}
+# 5. Predict on test data
+pred_poly_tuned <- predict(best_poly_model, newdata = test_data)
+
+# 6. Confusion Matrix and Classification Metrics
+conf_matrix_poly_tuned <- confusionMatrix(pred_poly_tuned, test_data$DiabetesTarget)
+print(conf_matrix_poly_tuned)
+
+# 7. Manual metric calculations
+TP <- sum(pred_poly_tuned == "1" & test_data$DiabetesTarget == "1")
+FP <- sum(pred_poly_tuned == "1" & test_data$DiabetesTarget == "0")
+TN <- sum(pred_poly_tuned == "0" & test_data$DiabetesTarget == "0")
+FN <- sum(pred_poly_tuned == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_poly_tuned  <- mean(pred_poly_tuned == test_data$DiabetesTarget)
+precision_poly_tuned <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_poly_tuned    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_poly_tuned  <- ifelse((precision_poly_tuned + recall_poly_tuned) == 0, 0,
+                    2 * precision_poly_tuned * recall_poly_tuned / (precision_poly_tuned + recall_poly_tuned))
+
+# 8. Results
+cat("Accuracy :", round(accuracy_poly_tuned, 4), "\n")
+cat("Precision:", round(precision_poly_tuned, 4), "\n")
+cat("Recall   :", round(recall_poly_tuned, 4), "\n")
+cat("F1-Score :", round(f1_score_poly_tuned, 4), "\n")
+```
+
+
+# 5.3 Training and Test Errors of Polynomial SVM Models
+
+```{r}
+# For Basic Polynomial SVM
+train_pred_poly <- predict(svm_poly, newdata = train_data)
+test_pred_poly  <- predict(svm_poly, newdata = test_data)
+
+train_error_poly <- 1 - mean(train_pred_poly == train_data$DiabetesTarget)
+test_error_poly  <- 1 - mean(test_pred_poly == test_data$DiabetesTarget)
+
+cat("\nPolynomial SVM (Basic):\n")
+cat("Training Error:", round(train_error_poly, 4), "\n")
+cat("Test Error    :", round(test_error_poly, 4), "\n")
+
+
+# For Tuned Polynomial SVM
+train_pred_poly_tuned <- predict(best_poly_model, newdata = train_data)
+test_pred_poly_tuned  <- predict(best_poly_model, newdata = test_data)
+
+train_error_poly_tuned <- 1 - mean(train_pred_poly_tuned == train_data$DiabetesTarget)
+test_error_poly_tuned  <- 1 - mean(test_pred_poly_tuned == test_data$DiabetesTarget)
+
+cat("\nPolynomial SVM (Tuned):\n")
+cat("Training Error:", round(train_error_poly_tuned, 4), "\n")
+cat("Test Error    :", round(test_error_poly_tuned, 4), "\n")
+```
+
+
+# 5.4 Performance Evaluation of Polynomial SVM and Tuned Polynomial SVM
+
+```{r}
+# 1. Calculate metrics for basic Polynomial SVM
+TP_poly <- sum(pred_poly == "1" & test_data$DiabetesTarget == "1")
+FP_poly <- sum(pred_poly == "1" & test_data$DiabetesTarget == "0")
+TN_poly <- sum(pred_poly == "0" & test_data$DiabetesTarget == "0")
+FN_poly <- sum(pred_poly == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_poly  <- mean(pred_poly == test_data$DiabetesTarget)
+precision_poly <- ifelse((TP_poly + FP_poly) == 0, 0, TP_poly / (TP_poly + FP_poly))
+recall_poly    <- ifelse((TP_poly + FN_poly) == 0, 0, TP_poly / (TP_poly + FN_poly))
+f1_score_poly  <- ifelse((precision_poly + recall_poly) == 0, 0,
+                         2 * precision_poly * recall_poly / (precision_poly + recall_poly))
+
+# 2. Calculate metrics for Tuned Polynomial SVM
+TP_poly_tuned <- sum(pred_poly_tuned == "1" & test_data$DiabetesTarget == "1")
+FP_poly_tuned <- sum(pred_poly_tuned == "1" & test_data$DiabetesTarget == "0")
+TN_poly_tuned <- sum(pred_poly_tuned == "0" & test_data$DiabetesTarget == "0")
+FN_poly_tuned <- sum(pred_poly_tuned == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_poly_tuned  <- mean(pred_poly_tuned == test_data$DiabetesTarget)
+precision_poly_tuned <- ifelse((TP_poly_tuned + FP_poly_tuned) == 0, 0, TP_poly_tuned / (TP_poly_tuned + FP_poly_tuned))
+recall_poly_tuned    <- ifelse((TP_poly_tuned + FN_poly_tuned) == 0, 0, TP_poly_tuned / (TP_poly_tuned + FN_poly_tuned))
+f1_score_poly_tuned  <- ifelse((precision_poly_tuned + recall_poly_tuned) == 0, 0,
+                               2 * precision_poly_tuned * recall_poly_tuned / (precision_poly_tuned + recall_poly_tuned))
+
+# 3. Create a dataframe for plotting
+metrics_data <- data.frame(
+  Model = rep(c("Polynomial SVM", "Tuned Polynomial SVM"), each = 4),
+  Metric = rep(c("Accuracy", "Precision", "Recall", "F1-Score"), 2),
+  Value = c(accuracy_poly, precision_poly, recall_poly, f1_score_poly,
+            accuracy_poly_tuned, precision_poly_tuned, recall_poly_tuned, f1_score_poly_tuned)
+)
+
+# 4. Build the grouped bar chart
+ggplot(metrics_data, aes(x = Metric, y = Value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(aes(label = paste0(round(Value * 100, 1), "%")),
+            position = position_dodge(width = 0.7),
+            vjust = -0.5, size = 3.5) +
+  scale_fill_manual(values = c("Polynomial SVM" = "#FF7F0E",   
+                               "Tuned Polynomial SVM" = "#4A90E2")) +  
+  labs(title = "Performance Evaluation of Polynomial SVM vs Tuned Polynomial SVM",
+       x = "Metrics",
+       y = "Score (%)") +
+  theme_minimal() +
+  ylim(0, 1) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+# 5.5 Compare Training and Test Error of Polynomial SVM and Tuned Polynomial SVM
+
+```{r}
+# 1. Create a dataframe for errors
+error_data <- data.frame(
+  Model = rep(c("Polynomial SVM", "Tuned Polynomial SVM"), each = 2),
+  ErrorType = rep(c("Training Error", "Test Error"), times = 2),
+  ErrorValue = c(train_error_poly, test_error_poly,
+                 train_error_poly_tuned, test_error_poly_tuned)
+)
+
+# 2. Plot the bar chart
+ggplot(error_data, aes(x = Model, y = ErrorValue, fill = ErrorType)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6, color = "black") +  # black border
+  geom_text(aes(label = paste0(round(ErrorValue * 100, 1), "%")),
+            position = position_dodge(width = 0.7),
+            vjust = -0.5, size = 3.5, fontface = "bold") +
+  scale_fill_manual(values = c("Training Error" = "#4A90E2",   
+                               "Test Error" = "#E94B3C")) +    
+  labs(title = "Training vs Test Error Comparison: Polynomial SVM Models",
+       x = "Model",
+       y = "Error (%)") +
+  theme_minimal(base_size = 14) +
+  ylim(0, 1) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+    axis.text.x = element_text(face = "bold"),
+    legend.title = element_blank(),
+    legend.position = "top"
+  )
+```
+
+# 6.1 Performance Evaluation of the Best SVM Models: Tuned Linear SVM, Tuned Radial SVM, and Tuned Polynomial SVM
+
+```{r}
+# 1. Recalculate Correct Metrics
+
+# Tuned Linear SVM
+TP_linear_tuned <- sum(pred_best == "1" & test_data$DiabetesTarget == "1")
+FP_linear_tuned <- sum(pred_best == "1" & test_data$DiabetesTarget == "0")
+FN_linear_tuned <- sum(pred_best == "0" & test_data$DiabetesTarget == "1")
+TN_linear_tuned <- sum(pred_best == "0" & test_data$DiabetesTarget == "0")
+
+accuracy_linear_tuned  <- mean(pred_best == test_data$DiabetesTarget)
+precision_linear_tuned <- ifelse((TP_linear_tuned + FP_linear_tuned) == 0, 0, TP_linear_tuned / (TP_linear_tuned + FP_linear_tuned))
+recall_linear_tuned    <- ifelse((TP_linear_tuned + FN_linear_tuned) == 0, 0, TP_linear_tuned / (TP_linear_tuned + FN_linear_tuned))
+f1_score_linear_tuned  <- ifelse((precision_linear_tuned + recall_linear_tuned) == 0, 0,
+                                 2 * precision_linear_tuned * recall_linear_tuned / (precision_linear_tuned + recall_linear_tuned))
+
+
+# Tuned Radial SVM
+TP_radial_tuned <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "1")
+FP_radial_tuned <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "0")
+FN_radial_tuned <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "1")
+TN_radial_tuned <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "0")
+
+accuracy_radial_tuned  <- mean(test_pred_radial == test_data$DiabetesTarget)
+precision_radial_tuned <- ifelse((TP_radial_tuned + FP_radial_tuned) == 0, 0, TP_radial_tuned / (TP_radial_tuned + FP_radial_tuned))
+recall_radial_tuned    <- ifelse((TP_radial_tuned + FN_radial_tuned) == 0, 0, TP_radial_tuned / (TP_radial_tuned + FN_radial_tuned))
+f1_score_radial_tuned  <- ifelse((precision_radial_tuned + recall_radial_tuned) == 0, 0,
+                                 2 * precision_radial_tuned * recall_radial_tuned / (precision_radial_tuned + recall_radial_tuned))
+
+
+# Tuned Polynomial SVM
+TP_poly_tuned <- sum(pred_poly_tuned == "1" & test_data$DiabetesTarget == "1")
+FP_poly_tuned <- sum(pred_poly_tuned == "1" & test_data$DiabetesTarget == "0")
+FN_poly_tuned <- sum(pred_poly_tuned == "0" & test_data$DiabetesTarget == "1")
+TN_poly_tuned <- sum(pred_poly_tuned == "0" & test_data$DiabetesTarget == "0")
+
+accuracy_poly_tuned  <- mean(pred_poly_tuned == test_data$DiabetesTarget)
+precision_poly_tuned <- ifelse((TP_poly_tuned + FP_poly_tuned) == 0, 0, TP_poly_tuned / (TP_poly_tuned + FP_poly_tuned))
+recall_poly_tuned    <- ifelse((TP_poly_tuned + FN_poly_tuned) == 0, 0, TP_poly_tuned / (TP_poly_tuned + FN_poly_tuned))
+f1_score_poly_tuned  <- ifelse((precision_poly_tuned + recall_poly_tuned) == 0, 0,
+                               2 * precision_poly_tuned * recall_poly_tuned / (precision_poly_tuned + recall_poly_tuned))
+
+
+# 2. Create dataframe for plotting
+metrics_data <- data.frame(
+  Model = rep(c("Tuned Linear SVM", "Tuned Radial SVM", "Tuned Polynomial SVM"), each = 4),
+  Metric = rep(c("Accuracy", "Precision", "Recall", "F1-Score"), 3),
+  Value = c(accuracy_linear_tuned, precision_linear_tuned, recall_linear_tuned, f1_score_linear_tuned,
+            accuracy_radial_tuned, precision_radial_tuned, recall_radial_tuned, f1_score_radial_tuned,
+            accuracy_poly_tuned, precision_poly_tuned, recall_poly_tuned, f1_score_poly_tuned)
+)
+
+# 3. Bar Chart
+ggplot(metrics_data, aes(x = Metric, y = Value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.6, color = "black") +
+  geom_text(aes(label = paste0(round(Value * 100, 1), "%")),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5, size = 3) +
+  scale_fill_manual(values = c("Tuned Linear SVM" = "#4A90E2",    # Blue
+                               "Tuned Radial SVM" = "#E94B3C",    # Red
+                               "Tuned Polynomial SVM" = "#FFA500")) +  # Orange
+  labs(title = "Performance Evaluation of the Best SVM Models",
+       x = "Metrics",
+       y = "Score (%)") +
+  theme_minimal(base_size = 14) +
+  ylim(0, 1) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.text.x = element_text(face = "bold"),
+    legend.title = element_blank(),
+    legend.position = "top"
+  )
+```
+This graph presents a comparative evaluation of the best-tuned SVM models. Both the Tuned Linear SVM and Tuned Radial SVM achieved the highest performance, with 89.2% accuracy, 94.3% F1-Score, 89.2% precision, and 100% recall, demonstrating strong predictive power and perfect recall. The Tuned Polynomial SVM also performed competitively, with slightly lower accuracy (86.3%) and recall (95.5%) but comparable precision and F1-Score. Conclusion, the Tuned Linear and Radial SVM models showed the most balanced and robust performance across all metrics, making them the most reliable classifiers in this evaluation.
+
+
+
+
+
+
+
+
+
+
+
