@@ -1,0 +1,1390 @@
+---
+title: "Practical Homework 2: Support Vector Machines"
+author: "Erdenetuya Namsrai"
+date: "2025-05-02"
+output: html_document
+---
+
+
+# 1. Data Preparation
+
+1.1 Load Libraries 
+
+```{r}
+library(e1071)
+library(caret)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(gridExtra)
+library(ROSE)
+library(DMwR2)
+library(smotefamily)
+library(corrplot)
+library(readr)
+library(tibble)
+library(yardstick)
+library(forcats)
+```
+
+
+1.2 Load Dataset and Perform Data Preparation
+
+```{r}
+data <- read.csv("D:\\Data Science Master in USA\\Spring_2025\\DATA 5322 Statistical Machine Learning II\\Homework\\Practical Homework 2_Support Vector Machines\\nhis_2022.csv")
+
+df_nhis <- data
+dim(df_nhis)
+head(df_nhis, 3)
+```
+
+
+The "nhis" dataset contains 35115 records and 48 variables. 
+
+1.3 Filter only adults (age >= 18)
+
+```{r}
+df_nhis <- df_nhis %>% filter(AGE >= 18)
+dim(df_nhis)
+```
+
+After filtering for age ≥ 18, the dataset contains 27,651 records and 49 variables. The aim of this study is to investigate the factors associated with diabetes among adults aged 18 years and older
+
+1.4 Clean Invalid and Special Code Values
+
+```{r}
+nhis_clean <- df_nhis %>%
+  mutate(
+    AGE = ifelse(AGE >= 86, NA, AGE),
+    ALCANYNO = ifelse(ALCANYNO >= 996, NA, ALCANYNO),
+    CIGDAYMO = ifelse(CIGDAYMO >= 996, NA, CIGDAYMO),
+    MOD10DMIN = ifelse(MOD10DMIN >= 996, NA, MOD10DMIN),
+    VIG10DMIN = ifelse(VIG10DMIN >= 996, NA, VIG10DMIN),
+    HOURSWRK = ifelse(HOURSWRK >= 97, NA, HOURSWRK),
+    BMICALC = ifelse(BMICALC >= 996, NA, BMICALC),
+    ALCDAYSYR = ifelse(ALCDAYSYR >= 996, NA, ALCDAYSYR),
+    EDUC = ifelse(EDUC >= 996, NA, EDUC),
+    HEIGHT = ifelse(HEIGHT >= 96, NA, HEIGHT)
+  )
+
+dim(nhis_clean)
+head(nhis_clean, 3)
+```
+
+1.5 Remove NA Rows
+
+```{r}
+model_nhis <- nhis_clean %>% drop_na()
+
+dim(model_nhis)
+head(model_nhis, 3)
+```
+
+
+After cleaning, the dataset contains 21413 records and 48 variables.
+
+1.6 Remove unnecessary Survey info (variables 1–12) and Disease indicators (CANCEREV, CHEARTDIEV, HEARTATTEV, STROKEV)
+
+```{r}
+variables_to_remove <- c("YEAR", "SERIAL", "STRATA", "PSU", "NHISHID", 
+                         "PERNUM", "NHISPID", "HHX", "SAMPWEIGHT", 
+                         "ASTATFLG", "CSTATFLG", "REGION", "CANCEREV", 
+                         "CHEARTDIEV", "HEARTATTEV", "STROKEV")
+
+# 2. Remove only the columns that exist in df_adults
+model_nhis <- model_nhis %>% select(-any_of(variables_to_remove))
+
+# 3. View
+dim(model_nhis)
+head(model_nhis, 3)
+```
+
+After removing irrelevant features, the dataset contains 21413 records and 32 variables.
+
+1.7 Create new target variable "Diabetes"
+
+```{r}
+# Create new target variable "Diabetes"
+model_nhis <- model_nhis %>%
+  mutate(Diabetes = ifelse(DIABETICEV == 1, 1, 0)) %>%
+  select(-DIABETICEV)       
+
+dim(model_nhis)
+head(model_nhis, 3)
+```
+
+
+1.8 Convert categorical variables to factor
+
+```{r}
+# SEX
+model_nhis$SEX <- as.factor(model_nhis$SEX)
+
+# HINOTCOVE
+model_nhis$HINOTCOVE <- as.factor(model_nhis$HINOTCOVE)
+
+dim(model_nhis)
+head(model_nhis, 3)
+```
+
+1.9 Feature Selection and Variable Exploration
+
+```{r}
+# 1. Select numeric_variables
+numeric_variables <- model_nhis %>% select(where(is.numeric))
+
+# 2. Remove rows with missing values
+numeric_clean <- na.omit(numeric_variables)
+
+# 3. Compute correlation matrix
+correlations <- cor(numeric_clean)
+
+# 4. Extract correlation with the Diabetes column
+diabetes_corr <- correlations[, "Diabetes"]
+
+# 5. Select the top 10 most correlated variables
+top10 <- sort(abs(diabetes_corr), decreasing = TRUE)[2:11]
+
+# 6. Print the top 10 variable names and correlation values
+print(top10)
+
+# 7. Extract names of top 10 most correlated variables
+top10_names <- names(top10)
+
+# 8. Subset df_model to include only top 10 variables + target
+df_model <- model_nhis %>%
+  select(all_of(top10_names), Diabetes) %>%
+  na.omit()
+
+dim(df_model)
+head(df_model, 3)
+```
+
+Top 10 Features are:
+AGE --> age   
+BMICALC --> Body Mass Index
+WEIGHT --> Weight  
+HOURSWRK --> Total hours worked last week or usually
+ALCDAYSYR --> Frequency drank alcohol in past year: Days in past year
+EDUC --> Educational attainment
+VIG10DMIN --> Duration of vigorous activity 10+ minutes    
+POVERTY  --> Ratio of family income to poverty threshold
+MOD10DMIN  --> Duration of moderate activity 10+ minutes
+ALCANYNO --> Frequency drank alcohol in past year: Number of units
+
+
+1.10 Count Diabetes
+
+```{r}
+ggplot(df_model, aes(x = factor(Diabetes))) +
+  geom_bar(fill = "steelblue") +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
+  labs(x = "Diabetes (0 = No, 1 = Yes)", y = "Count",
+       title = "Frequency of Diabetes Cases") +
+  theme_minimal()
+```
+
+Following feature selection, the reduced dataset with the top 10 variables includes 19248 individuals with diabetes and 2165 without.
+Therefore, we need to balance the dataset by undersampling the majority class.
+
+1.11 Dataset Balancing Undersample Majority Class
+
+```{r}
+# 1. Check initial class distribution
+table(df_model$Diabetes)
+
+# 2. Separate classes
+yes_diabetes <- df_model %>% filter(Diabetes == 1)  # Majority
+no_diabetes  <- df_model %>% filter(Diabetes == 0)  # Minority
+
+# 3. Downsample majority class to match minority
+set.seed(42)
+yes_diabetes_downsampled <- yes_diabetes %>%
+  slice_sample(n = nrow(no_diabetes), replace = FALSE)
+
+# 4. Combine and shuffle
+balanced_df_model <- bind_rows(no_diabetes, yes_diabetes_downsampled) %>%
+  slice_sample(prop = 1)
+
+# 5. Check new distribution
+table(balanced_df_model$Diabetes)
+summary(balanced_df_model)
+```
+
+Result:
+Imbalanced dataset: 0 --> 2165, 1 --> 19248 
+Balanced dataset: 0 --> 2165, 1 --> 2165 
+
+```{r}
+ggplot(balanced_df_model, aes(x = factor(Diabetes))) +
+  geom_bar(fill = "steelblue") +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5) +
+  labs(x = "Diabetes (0 = No, 1 = Yes)", y = "Count",
+       title = "Frequency of Diabetes Cases") +
+  theme_minimal()
+```
+
+
+Result:
+To correct class imbalance, the majority class was downsampled, resulting in an equal number of diabetic and non-diabetic cases 2165 each, as shown in the figure. This balanced dataset reduces model bias and improves the reliability of SVM classification.
+
+
+Now, we build SVM models using the balanced dataset.
+
+# 2.Linear SVM 
+
+# 2.1 Linear SVM 
+
+
+```{r}
+# 1. Prepare balanced data
+set.seed(123)
+balanced_df_model_linear <- balanced_df_model %>%
+  mutate(DiabetesTarget = as.factor(Diabetes))
+
+# 2. Split into training and test sets
+train_index <- createDataPartition(balanced_df_model_linear$DiabetesTarget, p = 0.7, list = FALSE)
+train_df <- balanced_df_model_linear[train_index, ]
+test_df  <- balanced_df_model_linear[-train_index, ]
+
+# 3. Manually scale predictors 
+train_features <- train_df %>% select(-Diabetes, -DiabetesTarget)
+test_features  <- test_df %>% select(-Diabetes, -DiabetesTarget)
+
+scaled_train <- scale(train_features)
+scaled_test  <- scale(test_features,
+                      center = attr(scaled_train, "scaled:center"),
+                      scale  = attr(scaled_train, "scaled:scale"))
+
+# 4. Combine scaled features with target
+train_data <- data.frame(scaled_train, DiabetesTarget = train_df$DiabetesTarget)
+test_data  <- data.frame(scaled_test,  DiabetesTarget = test_df$DiabetesTarget)
+
+# 5. Train Linear SVM (scale = FALSE to avoid double scaling)
+svm_model_linear <- svm(
+  DiabetesTarget ~ ., 
+  data = train_data,
+  kernel = "linear",
+  cost = 1,
+  scale = FALSE
+)
+
+# 6. Predict on test data
+predictions <- predict(svm_model_linear, newdata = test_data)
+
+# 7. Confusion Matrix
+conf_matrix <- confusionMatrix(predictions, test_data$DiabetesTarget)
+print(conf_matrix)
+
+# 8. Manual performance metrics
+TP <- sum(predictions == "1" & test_data$DiabetesTarget == "1")
+TN <- sum(predictions == "0" & test_data$DiabetesTarget == "0")
+FP <- sum(predictions == "1" & test_data$DiabetesTarget == "0")
+FN <- sum(predictions == "0" & test_data$DiabetesTarget == "1")
+
+accuracy  <- mean(predictions == test_data$DiabetesTarget)
+precision <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score  <- ifelse((precision + recall) == 0, 0,
+                    2 * precision * recall / (precision + recall))
+
+cat("\n Linear SVM Results :\n")
+cat("Accuracy :", round(accuracy, 4), "\n")
+cat("Precision:", round(precision, 4), "\n")
+cat("Recall   :", round(recall, 4), "\n")
+cat("F1-Score :", round(f1_score, 4), "\n")
+
+# 9. Classification report
+results_tbl <- tibble(
+  truth = factor(test_data$DiabetesTarget, levels = c("0", "1")),
+  prediction = factor(predictions, levels = c("0", "1"))
+)
+
+# Compute metrics for class "0"
+class_0 <- results_tbl %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1 = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support = sum(truth == "0")
+  )
+
+# Reverse levels to compute metrics for class "1"
+class_1 <- results_tbl %>%
+  mutate(truth = fct_rev(truth), prediction = fct_rev(prediction)) %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1 = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support = sum(truth == "1")
+  )
+
+# Combine both
+class_report <- bind_rows(
+  tibble(class = "No Diabetes", precision = class_0$precision, recall = class_0$recall, f1 = class_0$f1, support = class_0$support),
+  tibble(class = "Yes Diabetes", precision = class_1$precision, recall = class_1$recall, f1 = class_1$f1, support = class_1$support)
+)
+
+# 10. Classification report
+cat("\n Classification Report:\n")
+for (i in 1:nrow(class_report)) {
+  cat(sprintf(" %-12s | Precision: %.2f | Recall: %.2f | F1-Score: %.2f | Support: %d\n",
+              class_report$class[i],
+              class_report$precision[i],
+              class_report$recall[i],
+              class_report$f1[i],
+              class_report$support[i]))
+}
+
+# 11. Averages
+macro_avg <- class_report %>%
+  summarise(across(precision:f1, mean, na.rm = TRUE))
+
+weighted_avg <- class_report %>%
+  summarise(across(precision:f1, ~weighted.mean(.x, class_report$support, na.rm = TRUE)))
+
+cat(sprintf("\n Accuracy     : %.4f\n", accuracy))
+cat(sprintf(" Macro Avg    : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            macro_avg$precision, macro_avg$recall, macro_avg$f1))
+cat(sprintf(" Weighted Avg : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            weighted_avg$precision, weighted_avg$recall, weighted_avg$f1))
+```
+
+Result:
+The Linear SVM model, trained on a balanced dataset, achieved an overall accuracy of 72.7%. It performs better at detecting diabetic cases Recall 78% than non diabetic ones Recall 67%. The macro-averaged precision, recall, and F1-score are all 0.73, it indicating consistent performance across classes.
+
+# 2.1.1 Training and Test Errors of Linear SVM Model
+
+```{r}
+# Training predictions
+training_predictions_linear <- predict(svm_model_linear, newdata = train_data)
+training_accuracy_linear <- mean(training_predictions_linear == train_data$DiabetesTarget)
+training_error_linear <- 1 - training_accuracy_linear
+
+# Test predictions
+test_accuracy_linear <- mean(predictions == test_data$DiabetesTarget)
+test_error_linear <- 1 - test_accuracy_linear
+
+# Results
+cat("\n Linear SVM Training and Test Error Rates:\n")
+cat(sprintf(" Training Accuracy : %.4f\n", training_accuracy_linear))
+cat(sprintf(" Training Error     : %.4f\n", training_error_linear))
+cat(sprintf(" Test Accuracy      : %.4f\n", test_accuracy_linear))
+cat(sprintf(" Test Error         : %.4f\n", test_error_linear))
+```
+
+Result:
+Training accuracy: 72.1%
+Test accuracy: 72.3%
+Training Error: 27.9%
+Test Error: 27.2%
+The linear SVM shows stable and consistent performance across training and test sets, indicating a well generalized model that does not overfit or underfit the data. 
+
+Now, by using the tuned linear SVM, the model's performance improves with high accuracy, and more balanced precision and recall. Most importantly, it classifies the true classes more accurately.
+
+
+# 2.2 Tuned Linear SVM 
+
+```{r}
+# 1. Tune SVM 
+cost_values <- c(0.1, 1, 10, 100)  
+
+set.seed(123)
+tuned_svm_model <- tune(
+  svm,
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "linear",
+  ranges = list(cost = cost_values),
+  scale = FALSE,
+  tunecontrol = tune.control(cross = 10)
+)
+
+# 2. Best model
+best_svm_tuned <- tuned_svm_model$best.model
+cat("Best Cost Selected:", tuned_svm_model$best.parameters$cost, "\n")
+
+# 3. Predict on test data
+predictions <- predict(best_svm_tuned, newdata = test_data)
+
+# 4. Confusion Matrix
+conf_matrix <- confusionMatrix(predictions, test_data$DiabetesTarget)
+print(conf_matrix)
+
+# 5. Manual performance metrics
+TP <- sum(predictions == "1" & test_data$DiabetesTarget == "1")
+TN <- sum(predictions == "0" & test_data$DiabetesTarget == "0")
+FP <- sum(predictions == "1" & test_data$DiabetesTarget == "0")
+FN <- sum(predictions == "0" & test_data$DiabetesTarget == "1")
+
+accuracy_tuned_linear  <- mean(predictions == test_data$DiabetesTarget)
+precision_tuned_linear <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall_tuned_linear    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score_tuned_linear  <- ifelse((precision_tuned_linear + recall_tuned_linear) == 0, 0,
+                    2 * precision_tuned_linear * recall_tuned_linear / (precision_tuned_linear + recall_tuned_linear))
+
+cat("\n Tuned Linear SVM Results :\n")
+cat("Accuracy :", round(accuracy_tuned_linear, 4), "\n")
+cat("Precision:", round(precision_tuned_linear, 4), "\n")
+cat("Recall   :", round(recall_tuned_linear, 4), "\n")
+cat("F1-Score :", round(f1_score_tuned_linear, 4), "\n")
+
+# 6. Classification report
+results_tbl <- tibble(
+  truth = factor(test_data$DiabetesTarget, levels = c("0", "1")),
+  prediction = factor(predictions, levels = c("0", "1"))
+)
+
+# Metrics for class 0
+class_0 <- results_tbl %>%
+  summarise(
+    precision_tuned_linear = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall_tuned_linear = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1 = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support = sum(truth == "0")
+  )
+
+# Metrics for class 1
+class_1 <- results_tbl %>%
+  mutate(truth = fct_rev(truth), prediction = fct_rev(prediction)) %>%
+  summarise(
+    precision_tuned_linear = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall_tuned_linear = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1 = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support = sum(truth == "1")
+  )
+
+# Combine report
+class_report <- bind_rows(
+  tibble(class = "No Diabetes", precision_tuned_linear = class_0$precision_tuned_linear, recall_tuned_linear = class_0$recall_tuned_linear, f1 = class_0$f1, support = class_0$support),
+  tibble(class = "Yes Diabetes", precision_tuned_linear = class_1$precision_tuned_linear, recall_tuned_linear = class_1$recall_tuned_linear, f1 = class_1$f1, support = class_1$support)
+)
+
+# 7. Classification report
+cat("\n Classification Report:\n")
+for (i in 1:nrow(class_report)) {
+  cat(sprintf(" %-12s | Precision: %.2f | Recall: %.2f | F1-Score: %.2f | Support: %d\n",
+              class_report$class[i],
+              class_report$precision_tuned_linear[i],
+              class_report$recall_tuned_linear[i],
+              class_report$f1[i],
+              class_report$support[i]))
+}
+
+# 8. Averages
+macro_avg <- class_report %>%
+  summarise(across(precision_tuned_linear:f1, mean, na.rm = TRUE))
+
+weighted_avg <- class_report %>%
+  summarise(across(precision_tuned_linear:f1, ~weighted.mean(.x, class_report$support, na.rm = TRUE)))
+
+cat(sprintf("\n Accuracy     : %.4f\n", accuracy_tuned_linear))
+cat(sprintf(" Macro Avg    : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            macro_avg$precision_tuned_linear, macro_avg$recall_tuned_linear, macro_avg$f1))
+cat(sprintf(" Weighted Avg : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            weighted_avg$precision_tuned_linear, weighted_avg$recall_tuned_linear, weighted_avg$f1))
+```
+
+Result:
+The tuned linear SVM model achieved stable and balanced performance, with a good trade-off between precision and recall for both classes. It is slightly more effective at detecting diabetes cases Recall 78%, while still maintaining decent accuracy for non diabetic cases.
+
+# 2.2.1 Training and Test Errors of Tuned Linear SVM Model
+
+```{r}
+# Training predictions
+train_predictions_tuned_linear <- predict(best_svm_tuned, newdata = train_data)
+training_accuracy_tuned_linear <- mean(train_predictions_tuned_linear == train_data$DiabetesTarget)
+test_accuracy_tuned_linear    <- mean(predictions == test_data$DiabetesTarget)
+
+# Test predictions
+training_error_tuned_linear <- 1 - training_accuracy_tuned_linear
+test_error_tuned_linear     <- 1 - test_accuracy_tuned_linear
+
+# Results
+cat("\n Tuned Linear SVM Accuracy and Error Rates:\n")
+cat(sprintf(" Training Accuracy : %.4f\n", training_accuracy_tuned_linear))
+cat(sprintf(" Training Error    : %.4f\n", training_error_tuned_linear))
+cat(sprintf(" Test Accuracy     : %.4f\n", test_accuracy_tuned_linear))
+cat(sprintf(" Test Error        : %.4f\n", test_error_tuned_linear))
+```
+
+# 2.2.2 Important Variables of Tuned Linear SVM
+
+```{r}
+# 1. Select features and define SVM data
+svm_data <- train_data %>%
+  select(AGE, BMICALC, WEIGHT, HOURSWRK, ALCDAYSYR, EDUC, VIG10DMIN, POVERTY, MOD10DMIN, ALCANYNO, DiabetesTarget) %>%
+  mutate(DiabetesTarget = factor(DiabetesTarget))
+
+# 2. Hyperparameter tuning (cost)
+set.seed(123)
+cost_values <- c(0.01, 0.1, 1, 10, 100)
+tuned_linear_model <- tune(
+  svm,
+  DiabetesTarget ~ .,
+  data = svm_data,
+  kernel = "linear",
+  ranges = list(cost = cost_values),
+  scale = TRUE
+)
+
+# 3. Extract best model and compute coefficients
+best_svm_model <- tuned_linear_model$best.model
+w <- t(best_svm_model$coefs) %*% best_svm_model$SV
+
+# 4. Create feature importance table
+feature_names <- c("AGE", "BMICALC", "WEIGHT", "HOURSWRK", "ALCDAYSYR", 
+                   "EDUC", "VIG10DMIN", "POVERTY", "MOD10DMIN", "ALCANYNO")
+
+importance_df <- data.frame(
+  Variable = feature_names,
+  Coefficient = as.vector(w)
+) %>%
+  mutate(AbsCoefficient = abs(Coefficient)) %>%
+  arrange(desc(AbsCoefficient))
+
+# 5. Plot variable importance
+ggplot(importance_df, aes(x = reorder(Variable, AbsCoefficient), y = AbsCoefficient)) +
+  geom_bar(stat = "identity", fill = "#5DADE2") +
+  geom_text(aes(label = round(AbsCoefficient, 3)), 
+            hjust = -0.1, size = 3, color = "black") +  
+  coord_flip() +
+  labs(
+    title = "Important Variables of Tuned Linear SVM",
+    x = "",
+    y = "Absolute Coefficient Value"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  ylim(0, max(importance_df$AbsCoefficient) * 1.1)
+```
+
+Result:
+The tuned Linear SVM model identified age as the most influential predictor of diabetes, followed by body mass index and alcohol consumption frequency. Moderate effects were seen from weight and poverty level, while education, physical activity, and work hours had minimal impact. These findings highlight the key role of demographic and lifestyle factors, especially age and body mass index in diabetes prediction.
+
+
+# 2.2.3 Decision Boundary of Tuned Linear SMV Model with Top 2 Variables
+
+A decision boundary shows how the model makes decisions between classes.
+
+```{r}
+# 1. Train data: AGE and BMICALC
+scaled_Age <- scale(train_data$AGE)
+scaled_BMI <- scale(train_data$BMICALC)
+
+train_plot_df <- train_data %>%
+  mutate(
+    Age = as.numeric(scaled_Age),
+    BMI = as.numeric(scaled_BMI),
+    DiabetesTarget = factor(DiabetesTarget)
+  ) %>%
+  select(Age, BMI, DiabetesTarget)
+
+# 2. Tuned SVM model
+set.seed(123)
+svm_tuned_best2variables <- tune(
+  svm,
+  DiabetesTarget ~ Age + BMI,
+  data = train_plot_df,
+  kernel = "linear",
+  ranges = list(cost = c(0.1, 1, 10, 100)),
+  scale = FALSE
+)$best.model
+
+# 3. Grid to visualize the decision surface
+x_range <- seq(min(train_plot_df$Age), max(train_plot_df$Age), length.out = 200)
+y_range <- seq(min(train_plot_df$BMI), max(train_plot_df$BMI), length.out = 200)
+grid <- expand.grid(Age = x_range, BMI = y_range)
+grid$pred <- predict(svm_tuned_best2variables, newdata = grid)
+
+# 4. Decision boundary plot
+ggplot() +
+  geom_tile(data = grid, aes(x = Age, y = BMI, fill = pred), alpha = 0.3) +
+  scale_fill_manual(
+    values = c("0" = "#1f77b4", "1" = "#ff7f0e"),
+    name = "Prediction",
+    labels = c("No Diabetes (0)", "Yes Diabetes (1)")
+  ) +
+  geom_point(data = train_plot_df, aes(x = Age, y = BMI, shape = DiabetesTarget), color = "black", size = 1.3) +
+  scale_shape_manual(values = c(1, 17), labels = c("No Diabetes (0)", "Yes Diabetes (1)")) +
+  geom_contour(
+    data = grid,
+    aes(x = Age, y = BMI, z = as.numeric(pred)),
+    breaks = 1.5,
+    color = "black",
+    size = 1
+  ) +
+  labs(
+    title = "Decision Boundary of Tuned Linear SVM",
+    x = "Age (scaled)",
+    y = "Body Mass Index (scaled)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+# 5. Scale the test data
+test_plot_df <- test_data %>%
+  mutate(
+    Age = as.numeric(scale(AGE,
+      center = attr(scaled_Age, "scaled:center"),
+      scale  = attr(scaled_Age, "scaled:scale")
+    )),
+    BMI = as.numeric(scale(BMICALC,
+      center = attr(scaled_BMI, "scaled:center"),
+      scale  = attr(scaled_BMI, "scaled:scale")
+    )),
+    DiabetesTarget = factor(DiabetesTarget)
+  ) %>%
+  select(Age, BMI, DiabetesTarget)
+
+# 6. Predict and Accuracy
+test_pred_linear <- predict(svm_tuned_best2variables, newdata = test_plot_df)
+test_accuracy_linear <- mean(test_pred_linear == test_plot_df$DiabetesTarget)
+
+# 7. Result
+cat(sprintf("Test Accuracy of Linear SVM: %.4f\n", test_accuracy_linear))
+```
+
+This decision boundary uses the top 2 variables to visually demonstrate how the Linear SVM model classifies the data. The model correctly predicted the diabetes status 71.8% of the time. 
+
+
+# 3. Radial SVM
+
+# 3.1 Radial SVM
+
+```{r}
+# 1. Train Radial SVM
+radial_svm_model <- svm(
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "radial",
+  cost = 1,
+  scale = FALSE
+)
+
+# 2. Predictions
+train_pred_radial <- predict(radial_svm_model, newdata = train_data)
+test_pred_radial  <- predict(radial_svm_model, newdata = test_data)
+
+# 3. Confusion Matrix
+cat("\n Confusion Matrix (Test Data):\n")
+print(confusionMatrix(test_pred_radial, test_data$DiabetesTarget))
+
+# 4. Manual Performance Metrics
+TP <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "1")
+TN <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "0")
+FP <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "0")
+FN <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "1")
+
+accuracy <- mean(test_pred_radial == test_data$DiabetesTarget)
+precision <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score  <- ifelse((precision + recall) == 0, 0,
+                    2 * precision * recall / (precision + recall))
+
+cat("\n Radial SVM Results (Balanced & Scaled):\n")
+cat("Accuracy :", round(accuracy, 4), "\n")
+cat("Precision:", round(precision, 4), "\n")
+cat("Recall   :", round(recall, 4), "\n")
+cat("F1-Score :", round(f1_score, 4), "\n")
+
+# 5. Classification Report
+results_tbl <- tibble(
+  truth = factor(test_data$DiabetesTarget, levels = c("0", "1")),
+  prediction = factor(test_pred_radial, levels = c("0", "1"))
+)
+
+# Metrics for class 0
+class_0 <- results_tbl %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "0")
+  )
+
+# Metrics for class 1
+class_1 <- results_tbl %>%
+  mutate(truth = fct_rev(truth), prediction = fct_rev(prediction)) %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "1")
+  )
+
+# Combine report
+class_report <- bind_rows(
+  tibble(class = "No Diabetes", precision = class_0$precision, recall = class_0$recall, f1 = class_0$f1, support = class_0$support),
+  tibble(class = "Yes Diabetes", precision = class_1$precision, recall = class_1$recall, f1 = class_1$f1, support = class_1$support)
+)
+
+# 6. Classification report
+cat("\n Classification Report:\n")
+for (i in 1:nrow(class_report)) {
+  cat(sprintf(" %-12s | Precision: %.2f | Recall: %.2f | F1-Score: %.2f | Support: %d\n",
+              class_report$class[i],
+              class_report$precision[i],
+              class_report$recall[i],
+              class_report$f1[i],
+              class_report$support[i]))
+}
+
+# 7. Averages
+macro_avg <- class_report %>%
+  summarise(across(precision:f1, mean, na.rm = TRUE))
+
+weighted_avg <- class_report %>%
+  summarise(across(precision:f1, ~weighted.mean(.x, class_report$support, na.rm = TRUE)))
+
+cat(sprintf("\n Accuracy     : %.4f\n", accuracy))
+cat(sprintf(" Macro Avg    : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            macro_avg$precision, macro_avg$recall, macro_avg$f1))
+cat(sprintf(" Weighted Avg : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            weighted_avg$precision, weighted_avg$recall, weighted_avg$f1))
+```
+
+Result:
+The radial SVM model achieved a test accuracy of 73.1%, which means it shows strong overall performance. It is more effective at identifying diabetic cases Recall 81% than non-diabetic ones Recall 65%. With a high F1-score of 75% for diabetes.
+
+
+# 3.1.1 Training and Test Errors of Radial SVM Model
+
+```{r}
+# Training predictions
+train_acc_radial <- mean(train_pred_radial == train_data$DiabetesTarget)
+test_acc_radial  <- mean(test_pred_radial == test_data$DiabetesTarget)
+
+# Test predictions
+train_err_radial <- 1 - train_acc_radial
+test_err_radial  <- 1 - test_acc_radial
+
+# Results
+cat("\n Radial SVM Accuracy and Error Rates:\n")
+cat(sprintf(" Training Accuracy : %.4f\n", train_acc_radial))
+cat(sprintf(" Training Error    : %.4f\n", train_err_radial))
+cat(sprintf(" Test Accuracy     : %.4f\n", test_acc_radial))
+cat(sprintf(" Test Error        : %.4f\n", test_err_radial))
+```
+
+Result:
+Training accuracy: 74.6%
+Test accuracy: 73.1%
+Training Error: 25.4%
+Test Error: 26.8%
+The radial SVM shows stable and consistent performance across training and test sets, indicating a well generalized model that does not overfit or underfit the data. 
+
+Now, using the tuned radial SVM, the model's performance improves with higher accuracy and more balanced precision and recall. Most importantly, it classifies the true classes more reliably and accurately.
+
+
+# 3.2 Tuned Radial SVM
+
+```{r}
+# 1. Tuning grid
+cost_values <- c(0.1, 1, 10, 100) 
+gamma_values <- c(0.001, 0.01, 0.1, 1.0)
+
+# 2. Tune Radial SVM
+set.seed(123)
+tuned_radial <- tune(
+  svm,
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "radial",
+  ranges = list(cost = cost_values, gamma = gamma_values),
+  scale = FALSE,
+  tunecontrol = tune.control(cross = 10)
+)
+
+# 3. Best model
+tuned_radial_svm_model <- tuned_radial$best.model
+cat("\n Tuned Radial SVM Best Parameters:\n")
+print(tuned_radial$best.parameters)
+
+# 4. Predictions
+train_pred_radial <- predict(tuned_radial_svm_model, newdata = train_data)
+test_pred_radial  <- predict(tuned_radial_svm_model, newdata = test_data)
+
+# 5. Confusion Matrix
+cat("\n Confusion Matrix (Test Data):\n")
+print(confusionMatrix(test_pred_radial, test_data$DiabetesTarget))
+
+# 6. Manual performance metrics
+TP <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "1")
+TN <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "0")
+FP <- sum(test_pred_radial == "1" & test_data$DiabetesTarget == "0")
+FN <- sum(test_pred_radial == "0" & test_data$DiabetesTarget == "1")
+
+accuracy  <- mean(test_pred_radial == test_data$DiabetesTarget)
+precision <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score  <- ifelse((precision + recall) == 0, 0,
+                    2 * precision * recall / (precision + recall))
+
+cat("\n Tuned Radial SVM Results (Balanced & Scaled):\n")
+cat("Accuracy :", round(accuracy, 4), "\n")
+cat("Precision:", round(precision, 4), "\n")
+cat("Recall   :", round(recall, 4), "\n")
+cat("F1-Score :", round(f1_score, 4), "\n")
+
+# 7. Classification report
+results_tbl <- tibble(
+  truth = factor(test_data$DiabetesTarget, levels = c("0", "1")),
+  prediction = factor(test_pred_radial, levels = c("0", "1"))
+)
+
+# Metrics for class 0
+class_0 <- results_tbl %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "0")
+  )
+
+# Metrics for class 1
+class_1 <- results_tbl %>%
+  mutate(truth = fct_rev(truth), prediction = fct_rev(prediction)) %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "1")
+  )
+
+# Combine report
+class_report <- bind_rows(
+  tibble(class = "No Diabetes", precision = class_0$precision, recall = class_0$recall, f1 = class_0$f1, support = class_0$support),
+  tibble(class = "Yes Diabetes", precision = class_1$precision, recall = class_1$recall, f1 = class_1$f1, support = class_1$support)
+)
+
+# 8. Classification report
+cat("\n Classification Report:\n")
+for (i in 1:nrow(class_report)) {
+  cat(sprintf(" %-12s | Precision: %.2f | Recall: %.2f | F1-Score: %.2f | Support: %d\n",
+              class_report$class[i],
+              class_report$precision[i],
+              class_report$recall[i],
+              class_report$f1[i],
+              class_report$support[i]))
+}
+
+# 9. Averages
+macro_avg <- class_report %>%
+  summarise(across(precision:f1, mean, na.rm = TRUE))
+
+weighted_avg <- class_report %>%
+  summarise(across(precision:f1, ~weighted.mean(.x, class_report$support, na.rm = TRUE)))
+
+cat(sprintf("\n Accuracy     : %.4f\n", accuracy))
+cat(sprintf(" Macro Avg    : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            macro_avg$precision, macro_avg$recall, macro_avg$f1))
+cat(sprintf(" Weighted Avg : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            weighted_avg$precision, weighted_avg$recall, weighted_avg$f1))
+```
+
+Result:
+The tuned radial SVM model demonstrated consistent and balanced performance, achieving an overall accuracy of 73.2%. It effectively identified diabetes cases with a recall of 79%, showing high sensitivity 78.4%, while also maintaining solid precision 76% and recall 68% for non-diabetic predictions. The chosen radial kernel with cost 10 and gamma 0.001 captures nonlinear patterns well, making it a reliable model for this classification task.
+
+# 3.2.1 Training and Test Errors of Tuned Radial SVM Model
+
+```{r}
+# Predictions
+train_pred_tuned_radial <- predict(tuned_radial_svm_model, newdata = train_data)
+test_pred_tuned_radial  <- predict(tuned_radial_svm_model, newdata = test_data)
+
+# Training predictions
+train_acc_tuned_radial <- mean(train_pred_tuned_radial == train_data$DiabetesTarget)
+test_acc_tuned_radial  <- mean(test_pred_tuned_radial == test_data$DiabetesTarget)
+
+# Test predictions
+train_err_tuned_radial <- 1 - train_acc_tuned_radial
+test_err_tuned_radial  <- 1 - test_acc_tuned_radial
+
+# Results
+cat("\n Tuned Radial SVM Accuracy and Error Rates:\n")
+cat(sprintf(" Training Accuracy : %.4f\n", train_acc_tuned_radial))  
+cat(sprintf(" Training Error    : %.4f\n", train_err_tuned_radial))
+cat(sprintf(" Test Accuracy     : %.4f\n", test_acc_tuned_radial))
+cat(sprintf(" Test Error        : %.4f\n", test_err_tuned_radial))
+```
+
+Result:
+Training accuracy: 72.1%
+Test accuracy: 73.2%
+Training Error: 27.8%
+Test Error: 26.7%
+The tuned radial SVM shows strong generalization, with similar training 72.1% and test 73.2% accuracies. This indicates consistent performance without overfitting. 
+
+
+# 3.2.2 Decision Boundary of Tuned Radial SMV Model with Top 2 Variables
+
+```{r}
+# 1. Train data: AGE and BMICALC
+plot_data <- train_data %>%
+  select(Age = AGE, BMI = BMICALC, DiabetesTarget) %>%
+  mutate(DiabetesTarget = factor(DiabetesTarget))
+
+# 2. Scale
+scaled_Age <- scale(plot_data$Age)
+scaled_BMI <- scale(plot_data$BMI)
+
+plot_data$Age <- as.numeric(scaled_Age)
+plot_data$BMI <- as.numeric(scaled_BMI)
+
+# 3. Tuned Radial SVM model
+set.seed(123)
+tuned_radial_best2variables <- tune(
+  svm,
+  DiabetesTarget ~ Age + BMI,
+  data = plot_data,
+  kernel = "radial",
+  ranges = list(cost = c(0.1, 1, 10, 100), gamma = c(0.001, 0.01, 0.1, 1.0)),
+  scale = FALSE
+)$best.model
+
+# 4. Grid to visualize the decision surface
+x_range <- seq(min(plot_data$Age), max(plot_data$Age), length.out = 200)
+y_range <- seq(min(plot_data$BMI), max(plot_data$BMI), length.out = 200)
+grid <- expand.grid(Age = x_range, BMI = y_range)
+grid$pred <- predict(tuned_radial_best2variables, newdata = grid)
+
+# 5. Decision boundary plot
+ggplot() +
+  geom_tile(data = grid, aes(x = Age, y = BMI, fill = pred), alpha = 0.3) +
+  scale_fill_manual(
+    values = c("0" = "#1f77b4", "1" = "#ff7f0e"),
+    name = "Prediction",
+    labels = c("No Diabetes (0)", "Yes Diabetes (1)")
+  ) +
+  geom_point(data = plot_data, aes(x = Age, y = BMI, shape = DiabetesTarget), color = "black", size = 1.3) +
+  scale_shape_manual(
+    values = c(1, 17),
+    labels = c("No Diabetes (0)", "Yes Diabetes (1)")
+  ) +
+  labs(
+    title = "Decision Boundary of Tuned Radial SVM",
+    x = "Age (scaled)",
+    y = "Body Mass Index (scaled)"
+  ) +
+  theme_minimal()
+
+# 6. Scale the test data
+test_plot_data <- test_data %>%
+  select(Age = AGE, BMI = BMICALC, DiabetesTarget) %>%
+  mutate(DiabetesTarget = factor(DiabetesTarget))
+
+test_plot_data$Age <- scale(test_plot_data$Age,
+                            center = attr(scaled_Age, "scaled:center"),
+                            scale = attr(scaled_Age, "scaled:scale"))[,1]
+
+test_plot_data$BMI <- scale(test_plot_data$BMI,
+                            center = attr(scaled_BMI, "scaled:center"),
+                            scale = attr(scaled_BMI, "scaled:scale"))[,1]
+
+# 7. Predict on test set
+test_pred <- predict(tuned_radial_best2variables, newdata = test_plot_data)
+
+# 8. Accuracy
+test_accuracy <- mean(test_pred == test_plot_data$DiabetesTarget)
+
+# 9. Result
+cat(sprintf("Test Accuracy of Radial SVM: %.4f\n", test_accuracy))
+```
+
+The use of the radial kernel likely improved performance by capturing nonlinear patterns in the data. The tuned radial SVM effectively learns complex, non-linear relationships between Age and BMI, making it more flexible than linear models. This decision boundary, based on the top two variables, visually demonstrates how the model classifies diabetes status. The model achieved a test accuracy of 72.1%. 
+
+# 4. Polynomial SVM
+
+# 4.1 Polynomial SVM 
+
+```{r}
+
+# 1. Polynomial SVM
+poly_svm_model <- svm(
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "polynomial",
+  degree = 3,
+  cost = 1,
+  scale = FALSE
+)
+
+# 2. Predictions
+train_pred_poly <- predict(poly_svm_model, newdata = train_data)
+test_pred_poly  <- predict(poly_svm_model, newdata = test_data)
+
+# 3. Confusion Matrix
+cat("\n Confusion Matrix (Test Data):\n")
+print(confusionMatrix(test_pred_poly, test_data$DiabetesTarget))
+
+# 4. Manual Performance Metrics
+TP <- sum(test_pred_poly == "1" & test_data$DiabetesTarget == "1")
+TN <- sum(test_pred_poly == "0" & test_data$DiabetesTarget == "0")
+FP <- sum(test_pred_poly == "1" & test_data$DiabetesTarget == "0")
+FN <- sum(test_pred_poly == "0" & test_data$DiabetesTarget == "1")
+
+accuracy  <- mean(test_pred_poly == test_data$DiabetesTarget)
+precision <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score  <- ifelse((precision + recall) == 0, 0,
+                    2 * precision * recall / (precision + recall))
+
+cat("\n Polynomial SVM Results (Balanced & Scaled):\n")
+cat("Accuracy :", round(accuracy, 4), "\n")
+cat("Precision:", round(precision, 4), "\n")
+cat("Recall   :", round(recall, 4), "\n")
+cat("F1-Score :", round(f1_score, 4), "\n")
+
+# 5. Classification Report
+results_tbl <- tibble(
+  truth = factor(test_data$DiabetesTarget, levels = c("0", "1")),
+  prediction = factor(test_pred_poly, levels = c("0", "1"))
+)
+
+# Metrics for class 0
+class_0 <- results_tbl %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "0")
+  )
+
+# Metrics for class 1
+class_1 <- results_tbl %>%
+  mutate(truth = fct_rev(truth), prediction = fct_rev(prediction)) %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "1")
+  )
+
+# Combine report
+class_report <- bind_rows(
+  tibble(class = "No Diabetes", precision = class_0$precision, recall = class_0$recall, f1 = class_0$f1, support = class_0$support),
+  tibble(class = "Yes Diabetes", precision = class_1$precision, recall = class_1$recall, f1 = class_1$f1, support = class_1$support)
+)
+
+# 6. Classification Report
+cat("\n Classification Report:\n")
+for (i in 1:nrow(class_report)) {
+  cat(sprintf(" %-12s | Precision: %.2f | Recall: %.2f | F1-Score: %.2f | Support: %d\n",
+              class_report$class[i],
+              class_report$precision[i],
+              class_report$recall[i],
+              class_report$f1[i],
+              class_report$support[i]))
+}
+
+# 7. Averages
+macro_avg <- class_report %>%
+  summarise(across(precision:f1, mean, na.rm = TRUE))
+
+weighted_avg <- class_report %>%
+  summarise(across(precision:f1, ~weighted.mean(.x, class_report$support, na.rm = TRUE)))
+
+cat(sprintf("\n Accuracy     : %.4f\n", accuracy))
+cat(sprintf(" Macro Avg    : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            macro_avg$precision, macro_avg$recall, macro_avg$f1))
+cat(sprintf(" Weighted Avg : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            weighted_avg$precision, weighted_avg$recall, weighted_avg$f1))
+```
+
+Result:
+The polynomial SVM model achieved a test accuracy of 72.4%, indicating strong overall performance. It is more effective at identifying diabetic cases Recall 85% than non-diabetic ones Recall 59%. The high F1-score of 76% for diabetes further highlights its strength in detecting positive cases.
+
+# 4.1.1 Training and Test Errors of Polynomial SVM Model
+
+```{r}
+# Predictions
+train_pred_poly <- predict(poly_svm_model, newdata = train_data)
+test_pred_poly  <- predict(poly_svm_model, newdata = test_data)
+
+# Training predictions
+train_acc_poly <- mean(train_pred_poly == train_data$DiabetesTarget)
+test_acc_poly  <- mean(test_pred_poly == test_data$DiabetesTarget)
+
+# Test predictions
+train_err_poly <- 1 - train_acc_poly
+test_err_poly  <- 1 - test_acc_poly
+
+# Results
+cat("\n Polynomial SVM Accuracy and Error Rates:\n")
+cat(sprintf(" Training Accuracy : %.4f\n", train_acc_poly))  
+cat(sprintf(" Training Error    : %.4f\n", train_err_poly))
+cat(sprintf(" Test Accuracy     : %.4f\n", test_acc_poly))
+cat(sprintf(" Test Error        : %.4f\n", test_err_poly))
+```
+
+Result:
+Training accuracy: 72.9%
+Test accuracy: 72.4%
+Training Error: 27.2%
+Test Error: 27.5%
+The Polynomial SVM shows consistent performance, with nearly equal training and test accuracy with 72.9% adnd 72.4%, indicating no overfitting. Its ability to model nonlinear patterns results in good generalization and stable predictions across datasets.
+
+
+# 4.2 Tuned Polynomial SVM
+
+```{r}
+# 1. Tuning grid
+cost_values   <- c(0.1, 1, 10)
+gamma_values <- c(0.1, 1)
+degree_values <- c(2, 3)
+
+# 2. Tune Polynomial SVM
+set.seed(123)
+tuned_poly <- tune(
+  svm,
+  DiabetesTarget ~ .,
+  data = train_data,
+  kernel = "polynomial",
+  ranges = list(cost = cost_values, degree = degree_values),
+  scale = FALSE,
+  tunecontrol = tune.control(cross = 10)
+)
+
+# 3. Best model
+tuned_poly_svm_model <- tuned_poly$best.model
+cat("\n Tuned Polynomial SVM Best Parameters:\n")
+print(tuned_poly$best.parameters)
+
+# 4. Predict on test data
+test_pred_poly <- predict(tuned_poly_svm_model, newdata = test_data)
+
+# 5. Confusion Matrix
+cat("\n Confusion Matrix (Test Data):\n")
+print(confusionMatrix(test_pred_poly, test_data$DiabetesTarget))
+
+# 6. Manual Performance Metrics
+TP <- sum(test_pred_poly == "1" & test_data$DiabetesTarget == "1")
+TN <- sum(test_pred_poly == "0" & test_data$DiabetesTarget == "0")
+FP <- sum(test_pred_poly == "1" & test_data$DiabetesTarget == "0")
+FN <- sum(test_pred_poly == "0" & test_data$DiabetesTarget == "1")
+
+accuracy  <- mean(test_pred_poly == test_data$DiabetesTarget)
+precision <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+recall    <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+f1_score  <- ifelse((precision + recall) == 0, 0,
+                    2 * precision * recall / (precision + recall))
+
+cat("\n Tuned Polynomial SVM Results:\n")
+cat("Accuracy :", round(accuracy, 4), "\n")
+cat("Precision:", round(precision, 4), "\n")
+cat("Recall   :", round(recall, 4), "\n")
+cat("F1-Score :", round(f1_score, 4), "\n")
+
+# 7. Classification Report
+results_tbl <- tibble(
+  truth = factor(test_data$DiabetesTarget, levels = c("0", "1")),
+  prediction = factor(test_pred_poly, levels = c("0", "1"))
+)
+
+class_0 <- results_tbl %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "0")
+  )
+
+class_1 <- results_tbl %>%
+  mutate(truth = fct_rev(truth), prediction = fct_rev(prediction)) %>%
+  summarise(
+    precision = precision_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    recall    = recall_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    f1        = f_meas_vec(truth, prediction, estimator = "binary", event_level = "second"),
+    support   = sum(truth == "1")
+  )
+
+class_report <- bind_rows(
+  tibble(class = "No Diabetes", precision = class_0$precision, recall = class_0$recall, f1 = class_0$f1, support = class_0$support),
+  tibble(class = "Yes Diabetes", precision = class_1$precision, recall = class_1$recall, f1 = class_1$f1, support = class_1$support)
+)
+
+# 8. Classification report
+cat("\n Classification Report:\n")
+for (i in 1:nrow(class_report)) {
+  cat(sprintf(" %-12s | Precision: %.2f | Recall: %.2f | F1-Score: %.2f | Support: %d\n",
+              class_report$class[i],
+              class_report$precision[i],
+              class_report$recall[i],
+              class_report$f1[i],
+              class_report$support[i]))
+}
+
+# 9. Averages
+macro_avg <- class_report %>%
+  summarise(across(precision:f1, mean, na.rm = TRUE))
+
+weighted_avg <- class_report %>%
+  summarise(across(precision:f1, ~weighted.mean(.x, class_report$support, na.rm = TRUE)))
+
+cat(sprintf("\n Accuracy     : %.4f\n", accuracy))
+cat(sprintf(" Macro Avg    : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            macro_avg$precision, macro_avg$recall, macro_avg$f1))
+cat(sprintf(" Weighted Avg : Precision %.2f | Recall %.2f | F1 %.2f\n",
+            weighted_avg$precision, weighted_avg$recall, weighted_avg$f1))
+```
+
+
+Result:
+The tuned polynomial SVM model, using a cubic kernel degree 3 and cost = 0.1, achieved strong performance in predicting diabetes. It reached 72.5% accuracy and a balanced accuracy of 72.5%, with high sensitivity 87.9% for non-diabetic cases and recall of 88% for diabetic cases. Precision was 83% non-diabetic and 67% diabetic, with a weighted F1-score of 0.72%. These results highlight the model's effectiveness in capturing complex patterns and prioritizing recall, making it well-suited for early diabetes detection.
+
+
+# 4.2.1 Training and Test Errors of Tuned Polynomial SVM Model
+
+```{r}
+# Predictions
+train_pred_tuned_poly <- predict(tuned_poly_svm_model, newdata = train_data)
+test_pred_tuned_poly  <- predict(tuned_poly_svm_model, newdata = test_data)
+
+# Training predictions
+train_acc_tuned_poly <- mean(train_pred_tuned_poly == train_data$DiabetesTarget)
+test_acc_tuned_poly  <- mean(test_pred_tuned_poly == test_data$DiabetesTarget)
+
+# Test predictions
+train_err_tuned_poly <- 1 - train_acc_tuned_poly
+test_err_tuned_poly  <- 1 - test_acc_tuned_poly
+
+# Results
+cat("\n Tuned Polynomial SVM Accuracy and Error Rates:\n")
+cat(sprintf(" Training Accuracy : %.4f\n", train_acc_tuned_poly))  
+cat(sprintf(" Training Error    : %.4f\n", train_err_tuned_poly))
+cat(sprintf(" Test Accuracy     : %.4f\n", test_acc_tuned_poly))
+cat(sprintf(" Test Error        : %.4f\n", test_err_tuned_poly))
+```
+
+Result:
+Training Accuracy: 71.5%
+Test Accuracy: 72.5%
+Training Error 28.4%
+Test Error: 27.5%
+The tuned Polynomial SVM demonstrates consistent performance, with training accuracy of 71.5% and test accuracy of 72.5%, indicating no signs of overfitting. Its ability to capture nonlinear relationships leads to good generalization and reliable predictions across both training and unseen data.
+
+
+# 4.2.2 Decision Boundary of Tuned Polynomial SMV Model with Top 2 Variables
+
+```{r}
+# 1. Train data: AGE and BMICALC
+plot_data <- train_data %>%
+  select(Age = AGE, BMI = BMICALC, DiabetesTarget) %>%
+  mutate(DiabetesTarget = factor(DiabetesTarget))
+
+# 2. Scale
+scaled_Age <- scale(plot_data$Age)
+scaled_BMI <- scale(plot_data$BMI)
+
+plot_data$Age <- as.numeric(scaled_Age)
+plot_data$BMI <- as.numeric(scaled_BMI)
+
+# 3. Tuned Polynomial SVM model
+set.seed(123)
+tuned_poly__best2variables <- tune(
+  svm,
+  DiabetesTarget ~ Age + BMI,
+  data = plot_data,
+  kernel = "polynomial",
+  ranges = list(cost = c(0.1, 1, 10), degree = c(2, 3, 4)),
+  scale = FALSE
+)$best.model
+
+# 4. Grid to visualize the decision surface
+x_range <- seq(min(plot_data$Age), max(plot_data$Age), length.out = 200)
+y_range <- seq(min(plot_data$BMI), max(plot_data$BMI), length.out = 200)
+grid <- expand.grid(Age = x_range, BMI = y_range)
+grid$pred <- predict(tuned_poly__best2variables, newdata = grid)
+
+# 5. Decision boundary plot
+ggplot() +
+  geom_tile(data = grid, aes(x = Age, y = BMI, fill = pred), alpha = 0.3) +
+  scale_fill_manual(
+    values = c("0" = "#1f77b4", "1" = "#ff7f0e"),
+    name = "Prediction",
+    labels = c("No Diabetes (0)", "Yes Diabetes (1)")
+  ) +
+  geom_point(data = plot_data, aes(x = Age, y = BMI, shape = DiabetesTarget), color = "black", size = 1.3) +
+  scale_shape_manual(
+    values = c(1, 17),
+    labels = c("No Diabetes (0)", "Yes Diabetes (1)")
+  ) +
+  labs(
+    title = "Decision Boundary of Tuned Polynomial SVM",
+    x = "Age (scaled)",
+    y = "Body Mass Index (scaled)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+# 6. Scale the test data
+test_plot_data <- test_data %>%
+  select(Age = AGE, BMI = BMICALC, DiabetesTarget) %>%
+  mutate(DiabetesTarget = factor(DiabetesTarget))
+
+test_plot_data$Age <- scale(
+  test_plot_data$Age,
+  center = attr(scaled_Age, "scaled:center"),
+  scale = attr(scaled_Age, "scaled:scale")
+)[, 1]
+
+test_plot_data$BMI <- scale(
+  test_plot_data$BMI,
+  center = attr(scaled_BMI, "scaled:center"),
+  scale = attr(scaled_BMI, "scaled:scale")
+)[, 1]
+
+# 7. Predict on test set
+test_pred_poly <- predict(tuned_poly__best2variables, newdata = test_plot_data)
+
+# 8. Accuracy
+test_accuracy_poly <- mean(test_pred_poly == test_plot_data$DiabetesTarget)
+
+# 9. Result
+cat(sprintf("Test Accuracy of Tuned Polynomial SVM: %.4f\n", test_accuracy_poly))
+```
+
+
+Result:
+This decision boundary of the tuned Polynomial SVM effectively captures nonlinear relationships between age and body mass index in classifying diabetes. With a test accuracy of 67.3%, the model shows moderate predictive performance.
+
+
+# 5. Performance Evaluation of the Best SVM Models: Tuned Linear SVM, Tuned Radial SVM, and Tuned Polynomial SVM
+
+```{r}
+# Create data
+tuned_svm_metrics <- data.frame(
+  Model = rep(c("Tuned Linear SVM", "Tuned Radial SVM", "Tuned Polynomial SVM"), each = 4),
+  Metric = rep(c("Accuracy", "Precision", "Recall", "F1_Score"), times = 3),
+  Value = c(
+    0.7273, 0.7565, 0.6703, 0.7108,   # Linear
+    0.7327, 0.7612, 0.6780, 0.7172,   # Radial
+    0.7250, 0.8259, 0.5701, 0.6746   # Polynomial
+  )
+)
+
+# Plot
+ggplot(tuned_svm_metrics, aes(x = Model, y = Value, fill = Metric)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+  geom_text(aes(label = paste0(round(Value * 100, 1), "%")),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5, size = 2.5) +
+  labs(
+    title = "Comparison of Tuned SVM Models",
+    x = "SVM Models",
+    y = "Metric Values"
+  ) +
+  scale_fill_brewer(palette = "Blues") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 15, hjust = 1))
+```
+
+Result:
+In the overall performance of the tuned SVM models: 
+The Radial SVM achieved the best results, with the highest accuracy (73.3%), F1-score (71.7%), and strong recall (67.8%), making it the most effective at identifying individuals with diabetes.
+The Linear SVM performed consistently across all metrics with good generalization. 
+The Polynomial SVM, despite its high precision (82.6%), showed the lowest recall, indicating a higher risk of missing diabetic cases.
+
+
