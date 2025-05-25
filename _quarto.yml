@@ -17,5 +17,7 @@ format:
       - brand
     css: styles.css
 
+output-dir: docs
+
 
 
