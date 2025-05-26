@@ -26,7 +26,7 @@ This study analyzes global obesity trends through unsupervised learning techniqu
 
 **1. Standardization**
 
-Before applying any modeling techniques, all numeric features were standardized using StandardScaler. This step is crucial when working with variables on different scales—such as GDP per capita and obesity percentages—as many clustering and dimensionality reduction methods are sensitive to scale. Standardization helps that each feature contributes equally to the analysis.
+Before applying any modeling techniques, all numeric features were standardized using StandardScaler. This step is crucial when working with variables on different scales such as GDP per capita and obesity percentages as many clustering and dimensionality reduction methods are sensitive to scale. Standardization helps that each feature contributes equally to the analysis. 
 
 **2. Singular Value Decomposition (SVD)**
 
@@ -39,13 +39,13 @@ Principal Component Analysis (PCA) is a method used to simplify large datasets b
 **4. K-Means Clustering**
 
 K-Means is a simple yet powerful clustering algorithm that groups data points into a specified number of clusters based on similarity. It works by minimizing the distance between data points and the center of their assigned cluster, making it efficient for large datasets. K-Means is widely used in unsupervised learning to uncover hidden patterns and groupings in data. Cluster quality was evaluated using:
-    - Silhouette score measures how similar each data point is to its own cluster versus other clusters.
+    - Silhouette score measure how similar each data point is to its own cluster versus other clusters. 
     - Within-Cluster Sum of Squares (WSS) helps identify the optimal number of clusters.
     - A confusion matrix shows how the cluster labels assigned by K-Means match up with the true class labels. It helps evaluate how well the clusters correspond to known categories.
 
 **5. Hierarchical Clustering**
 
-Hierarchical clustering creates a dendrogram (tree-like structure) to show how data points can be grouped. It does not require specifying the number of clusters in advance. Two types were used:
+Hierarchical clustering creates a dendrogram which is tree-like structure to show how data points can be grouped. It does not require specifying the number of clusters in advance. Two types were used: 
 •	Agglomerative (bottom-up) approach with four linkage methods:
     - Single --> min distance
     - Complete --> max distance
@@ -76,11 +76,11 @@ The obesity dataset was filtered to include only adult entries by selecting rows
 
 **Standardization of Features**
 
-All numeric features in the final dataset were standardized StandardScaler. This ensured equal weighting across variables with different units and scales, such as obesity percentages and GDP values, which is important for distance-based methods like clustering.
+All numeric features in the final dataset were standardized with StandardScaler. This ensured equal weighting across variables with different units and scales, such as obesity percentages and GDP values, which is important for distance-based methods like clustering. 
 
 **Dimensionality Reduction with SVD**
 
-To explore the internal structure of the data and simulate recovery from missing information, we applied SVD. We created versions of the dataset with random missing values at rates ranging from 5% to 30%. For each version, we performed low-rank SVD matrix completion using ranks from 1 to 5. The imputed values were compared against the original values at missing positions using mean squared error (MSE) and Pearson correlation.
+To explore the internal structure of the data and simulate recovery from missing information, we applied SVD. We created versions of the dataset with random missing values at rates ranging from 5% to 30%. For each version, we performed low-rank SVD matrix completion using ranks from 1 to 5. The imputed values were compared against the original values at missing positions using mean squared error (MSE) and correlation.
 
 **Principal Component Analysis (PCA)**
 
@@ -104,7 +104,7 @@ We evaluated how well the clustering matched the known regional groupings by com
 
 **Performance Metrics**
 
-To assess the models and methods used in this project, we employed several evaluation metrics: mean squared error (MSE) and Pearson correlation for matrix completion, silhouette scores for K-Means clustering quality, and confusion matrices for comparing cluster labels to continent and obesity class labels. These metrics helped guide hyperparameter choices and supported comparison between different methods.
+To assess the models and methods used in this project, we employed several evaluation metrics: mean squared error (MSE) and correlation of matrix, silhouette scores for K-Means clustering quality, and confusion matrices for comparing cluster labels to continent and obesity class labels. These metrics helped guide hyperparameter choices and supported comparison between different methods. 
 
 ## RESULT {#result}
 
@@ -192,7 +192,7 @@ Figure 7 shows the comparison of male and female obesity across continents (51 c
   </div>
 </div>
 
-This figure shows grouped countries into 3 meaningful clusters based on health spending, economic wealth, and obesity rates. This comparison plot shows that countries with higher health spending tend to have lower obesity rates, while those with moderate GDP and low spending show the highest obesity levels.
+This figure shows countries grouped into 3 meaningful clusters based on health spending, economic wealth, and obesity rates. This comparison plot shows that countries with higher health spending tend to have lower obesity rates, while those with moderate GDP and low spending show the highest obesity levels. 
 
 <div style="text-align: center;">
   <img src="/pictures/Variance Explained by Components.png" alt="Variance Explained by Components" style="max-width: 100%; height: auto;">
@@ -210,7 +210,7 @@ This plot shows that just the first two components capture most of the informati
   </div>
 </div>
 
-This plot shows how K-Means divided countries into three distinct groups based on health, economy, and obesity patterns. While one group (green) is large and diverse, another (blue) is more tightly packed, suggesting stronger similarity. The red group includes outliers or countries with unique profiles.
+This plot shows how K-Means divided countries into three distinct groups based on health, economy, and obesity patterns. While one group with green is large and diverse, another group with blue is more tightly packed, suggesting stronger similarity. The red group includes outliers or countries with unique profiles. 
 
 |                | Cluster 0 | Cluster 1 | Cluster 2 |
 |----------------|-------------|-------------|-------------|
@@ -230,7 +230,7 @@ Table 1 shows that K-Means clustering does a good job separating obese and non-o
   </div>
 </div>
 
-This plot suggests that k = 2 is the optimal number of clusters. It provides the highest silhouette score (best separation) and a sharp drop in WSS, indicating meaningful and compact clusters.
+This plot suggests that k = 2 is the optimal number of clusters. It provides the highest silhouette score with best separation and a sharp drop in WSS, indicating meaningful and compact clusters. 
 
 <div style="text-align: center;">
   <img src="/pictures/Comparison of Obese and Non-Obese Countries by Continent.png" alt="Comparison of Obese and Non-Obese Countries by Continent" style="max-width: 100%; height: auto;">
@@ -239,7 +239,7 @@ This plot suggests that k = 2 is the optimal number of clusters. It provides the
   </div>
 </div>
 
-Figure 12 shows that the proportion of obese countries (where adult obesity is ≥ 30%) is significantly higher in Africa, Asia, and South America compared to Europe. It is clear that Europe has no countries with high obesity.
+Figure 12 shows that the proportion of obese countries where adult obesity is ≥ 30% is significantly higher in Africa, Asia, and South America compared to Europe. It is clear that Europe has no countries with high obesity. 
 
 **4. Hierarchical Clustering**
 
@@ -325,26 +325,26 @@ Both hierarchical and K-Means clustering grouped most countries into the same cl
 
 ## DISCUSSION {#discussion}
 
-**Scree Plot and Variance Explained**
+**Scree Plot and Variance**
 
 The scree plot generated from Principal Component Analysis (PCA) showed that the first few principal components captured the majority of the variance in the data. Specifically, the first four components explained over 95% of the total variance. This steep drop in variance after the first few components suggests that most of the important structure in the dataset captured in a low-dimensional subspace. In other words, although we started with 13 numeric variables, only a small number of principal components are needed to preserve the overall structure of the dataset. This is typical of datasets where many features are correlated and redundant.
 
 **Interpretation of U and V* (SVD) or X and Rotation (PCA)**
 
-In the context of SVD, the U matrix represents the projection of countries by observations onto the latent components. This can be interpreted as how each country contributes to different hidden patterns in the data. The V* reflects how each original variable contributes to those components. If a component has high weights for both health expenditure and GDP, that component might represent an “economic development” axis
+In the context of SVD, the U matrix represents the projection of countries by observations onto the latent components. This can be interpreted as how each country contributes to different hidden patterns in the data. The V* reflects how each original variable contributes to those components. If a component has high weights for both health expenditure and GDP, that component may have a chance of representing as economic development. 
 
 **Structure in the PCA Projection**
 
-The scatter plot of countries in the first two PCA components revealed visible structure in the data. Countries with similar development and obesity patterns were grouped close together, while outliers such as Qatar and Samoa were far from the rest, indicating unique profiles. This projection is far more informative than plotting two original features like Male Obesity vs. Female Obesity, as it combines variance across all variables into a single reduced space. The PCA plot helps uncover hidden patterns and relationships that are not immediately visible in raw feature plots.
+The scatter plot of countries in the first two PCA components revealed visible structure in the data. Countries with similar development and obesity patterns were grouped together, while outliers such as Qatar and Samoa were far from the rest, indicating unique profiles. This projection is far more informative than plotting two original features like Male Obesity vs. Female Obesity, as it combines variance across all variables into a single reduced space. The PCA plot helps uncover hidden patterns and relationships that are not immediately visible in raw feature plots. 
 
 **Clustering Patterns and Interpretation**
 
-After performing K-Means clustering, we identified two primary groups of countries. One group included countries with lower GDP and health spending, often with moderate to high obesity rates. The other group contained more economically developed countries with higher health investments and lower obesity prevalence. A follow-up confusion matrix comparing these clusters with a binary obesity class showed that the clusters partially aligned with obesity status. Hierarchical clustering using Ward linkage grouped countries in a similar way, confirming consistent patterns. Countries in the same cluster often shared socioeconomic characteristics, such as similar health expenditure and urbanization rates, even if they were geographically distant.
+After performing K-Means clustering, we identified two primary groups of countries. One group included countries with lower GDP and health spending, often with moderate to high obesity rates. The other group contained more economically developed countries with higher health investments and lower obesity prevalence. A confusion matrix comparing these clusters with a binary obesity class showed that the clusters were partially aligned with obesity status. Hierarchical clustering using Ward linkage grouped countries in a similar way, confirming consistent patterns. Countries in the same cluster often share socioeconomic characteristics, such as similar health expenditure and urbanization rates, even though they are geographically distant. 
 
 **Model Comparison, Limitations, and Takeaways**
 
-We evaluated matrix completion performance using SVD across different missing data rates and ranks. Rank 3 offered the best trade-off between accuracy and complexity, with low mean squared error and high correlation to the true data. PCA was effective in reducing dimensionality and visualizing the dataset’s structure. K-Means clustering performed reasonably well, with a silhouette score of 0.38, indicating moderate cluster separation. However, some overlap between groups suggests that countries may not always cluster cleanly based on health and economic data.
-Limitations of our analysis include the relatively small number of countries where n=51, missing values in the original datasets, and potential mismatches in year alignment during the merger process. Additionally, clustering results may be sensitive to the choice of features, number of clusters, and scaling method. Future work could expand the dataset with more countries and years, test additional clustering methods with incorporate geographic and cultural variables to improve interoperability.
+Evaluation of matrix completion performance using SVD across different missing data rates and ranks. Rank 3 offered the best between accuracy and complexity, with low mean squared error and high correlation to the data. PCA was effective in reducing dimensionality and visualizing the dataset’s structure. K-Means clustering performed reasonably well, with a silhouette score of 0.38, indicating moderate cluster separation. However, due to some overlap between groups, there is a chance that countries may not always cluster cleanly based on health and economic data. 
+Limitations of our analysis include the relatively small number of countries where n=51, missing values in the original datasets, and potential mismatches in year alignment during the merger process. Additionally, clustering results may be sensitive to the choice of features, number of clusters, and scaling methods. Future work could expand the dataset with more countries and years, test additional clustering methods with incorporate geographic and cultural variables to improve interpretability. 
 
 **Key Findings and Relevance**
 
@@ -354,7 +354,7 @@ The analysis highlights strong links between economic development and obesity ou
 
 This study examined patterns of global adult obesity by combining obesity data with key development indicators such as GDP per capita, health expenditure, literacy rate, and urban population. By carefully cleaning and integrating the data, we created a robust dataset of 51 countries, which allowed us to conduct deeper analysis using unsupervised learning techniques.
 
-To address data completeness and reduce complexity, we used Singular Value Decomposition (SVD) and Principal Component Analysis (PCA). SVD was used to simulate and recover missing data, allowing us to assess the accuracy of matrix filling. PCA helped to reduce the number of variables while preserving more than 95% of the information in the dataset, as shown in the variance plot. This dimensionality reduction made the data easier to visualize and interpret without significantly losing structure. Clustering techniques, including K-Means and hierarchical clustering, were used to group countries with similar obesity and development profiles. 
+To address data completeness and reduce complexity, we used Singular Value Decomposition (SVD) and Principal Component Analysis (PCA). SVD was used to simulate and recover missing data, allowing us to assess the accuracy of matrix filling. PCA helped to reduce the number of variables while preserving more than 95% of the information in the dataset, as shown in the variance plot. This dimensionality reduction made the data easier to visualize and interpret without significantly losing its structure. Clustering techniques, including K-Means and hierarchical clustering, were used to group countries with similar obesity and development profiles. 
 
 The results of the study show that countries with high health expenditure and GDP, economically strong countries, have lower obesity rates, while countries with low GDP and health expenditure have higher obesity rates. When considering obesity rates by continent, Africa, Asia and South America have a relatively high proportion of countries with adult obesity rates exceeding 30%, while Europe does not fall into the high obesity category. In conclusion, this study used unsupervised learning methods, especially PCA, SVD and clustering methods, to detect obesity patterns, and the results of this study indicate that which regions should pay more attention to combating obesity, as well as improving economic indicators such as health expenditure and GDP in the region, are important for reducing obesity rates in the future.
 
