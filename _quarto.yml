@@ -2,22 +2,47 @@ project:
   type: website
 
 website:
-  title: "myblog"
-  navbar:
-    right:
-      - about.qmd
-      - icon: github
-        href: https://github.com/
-      - icon: twitter
-        href: https://twitter.com
+  sidebar:
+    style: "floating"
+    search: false
+    collapse-level: 1
+    contents:
+      - href: index.qmd
+        text: Home      
+      - href: posts/world_obesity/index.qmd#abstract
+        text: Abstract
+      - href: posts/world_obesity/index.qmd#introduction
+        text: Introduction
+      - href: posts/world_obesity/index.qmd#theoretical-background
+        text: Theoretical Background
+      - href: posts/world_obesity/index.qmd#methodology
+        text: Methodology
+      - href: posts/world_obesity/index.qmd#result
+        text: Result
+      - href: posts/world_obesity/index.qmd#discussion
+        text: Discussion
+      - href: posts/world_obesity/index.qmd#conclusion
+        text: Conclusion
+      - href: posts/world_obesity/index.qmd#reference
+        text: Reference
+      - href: about.qmd
+        text: About
+
 format:
   html:
+    toc: false
+    toc-location: left
+    toc-depth: 2
+    number-sections: true
     theme:
       - cosmo
       - brand
     css: styles.css
 
-output-dir: docs
 
+
+
+
+ 
 
 
