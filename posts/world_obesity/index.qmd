@@ -18,11 +18,20 @@ Obesity is one of the major health problems affecting the world's population. Ob
 
 ## INTRODUCTION {#introduction}
 
-The global obesity rate is increasing every year, and this is due to many factors. This study aims to explore adult obesity trends across different countries by examining their relationship with key national indicators such as Gross Domestic Product, health expenditure, literacy rate, and the level of urban population. By applying unsupervised learning techniques, specifically Principal Component Analysis for dimensionality reduction and K-Means and Hierarchical Clustering for pattern recognition, this research seeks to identify meaningful groupings of countries with similar obesity profiles. The goal is to uncover latent structures in the data that may inform future research and policy decisions aimed at reducing obesity worldwide.
+The global obesity rate is increasing every year, and this is due to many factors. This study aims to explore adult obesity trends across different countries by examining their relationship with key national indicators such as Gross Domestic Product, health expenditure, literacy rate, and the level of urban population. Our dataset integrates adult obesity data with country-level indicators sourced from the World Bank, covering 51 countries with 13 variables.
+
+<div style="text-align: center;">
+  <img src="/pictures/World Obesity Dataset.png" alt="World Obesity Dataset" style="width: 100%; height: auto;">
+  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
+    Figure 1. World Obesity Dataset
+  </div>
+</div>
+
+Figure 1 presents an overview of the world obesity data and its associated indicators. By applying unsupervised learning techniques, specifically Principal Component Analysis for dimensionality reduction and K-Means and Hierarchical Clustering for pattern recognition, this research seeks to identify meaningful groupings of countries with similar obesity profiles. The goal is to uncover latent structures in the data that may inform future research and policy decisions aimed at reducing obesity worldwide.
 
 ## THEORETICAL BACKGROUND {#theoretical-background}
 
-This study analyzes global obesity trends through unsupervised learning techniques, emphasizing their operational mechanisms, practical applications, parameter tuning, evaluation metrics, and inherent limitations.
+This study analyzes global obesity trends through unsupervised learning techniques, emphasizing their operational mechanisms, practical applications, parameter tuning, evaluation metrics, and inherent limitations. Diagrams illustrating the principal component directions and clustering structures would further enhance the clarity and depth of the analysis. 
 
 **1. Standardization**
 
@@ -34,24 +43,61 @@ Singular Value Decomposition (SVD) is a useful method for breaking down a matrix
 
 **3. Principal Component Analysis (PCA)**
 
-Principal Component Analysis (PCA) is a method used to simplify large datasets by reducing the number of variables while keeping the most important information. It does this by creating new variables, called principal components, that capture the main patterns in the data. PCA is useful for making data easier to visualize, removing noise, and preparing for other analyses.
+Principal Component Analysis (PCA) is a method used to simplify large datasets by reducing the number of variables while keeping the most important information. It achieves this by transforming the original variables into a new set of orthogonal variables called principal components, which are linear combinations of the original features. These components are ordered according to the amount of variance they capture, with the first principal component explaining the greatest variance, the second capturing the next greatest. 
+By redefining the feature space along new directions that maximize variance, PCA provides a lower-dimensional representation of the data while preserving its essential structure. This transformation facilitates data visualization, enhances interpretability, reduces noise, and prepares the data for further analyses such as clustering. 
+To determine how much variance each component captures, a Scree Plot was generated. The plot displays the proportion of variance explained by each principal component and helps identify the number of components to retain for further analysis.
+
+<div style="text-align: center;">
+  <img src="/pictures/Scree Plot1.png" alt="Scree Plot1" style="max-width: 100%; height: auto;">
+  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
+    Figure 2. Scree Plot
+  </div>
+</div>
+
+Proportion of variance explained by each principal component based on the world obesity dataset.
+In this study, the directions of the principal components and the proportion of variance explained by each were examined to uncover the underlying patterns in the world obesity dataset.
 
 **4. K-Means Clustering**
 
-K-Means is a simple yet powerful clustering algorithm that groups data points into a specified number of clusters based on similarity. It works by minimizing the distance between data points and the center of their assigned cluster, making it efficient for large datasets. K-Means is widely used in unsupervised learning to uncover hidden patterns and groupings in data. Cluster quality was evaluated using:
-    - Silhouette score measure how similar each data point is to its own cluster versus other clusters. 
-    - Within-Cluster Sum of Squares (WSS) helps identify the optimal number of clusters.
-    - A confusion matrix shows how the cluster labels assigned by K-Means match up with the true class labels. It helps evaluate how well the clusters correspond to known categories.
+K-Means is a simple yet powerful clustering algorithm that groups data points into a specified number of clusters based on similarity. It works by minimizing the distance between data points and the center of their assigned cluster, making it efficient for large datasets. K-Means is widely used in unsupervised learning to uncover hidden patterns and groupings in data. 
+
+<div style="text-align: center;">
+  <img src="/pictures/Cluster Analysis.png" alt="Cluster Analysis" style="max-width: 100%; height: auto;">
+  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
+    Figure 3. Cluster Analysis
+  </div>
+</div>
+
+Figure 3 shows clustering results for different numbers of clusters (k) using a scatterplot layout. It compares the outcomes of K-Means clustering with k values of 2, 3, and 4.
+
+Cluster quality was evaluated using:
+
+- Silhouette score measures how similar each data point is to its own cluster versus other clusters.
+- Within-Cluster Sum of Squares (WSS) helps identify the optimal number of clusters.
+- A confusion matrix shows how the cluster labels assigned by K-Means match up with the true class labels. 
+It helps evaluate how well the clusters correspond to known categories.
 
 **5. Hierarchical Clustering**
 
 Hierarchical clustering creates a dendrogram which is tree-like structure to show how data points can be grouped. It does not require specifying the number of clusters in advance. Two types were used: 
-•	Agglomerative (bottom-up) approach with four linkage methods:
+
+- Agglomerative (bottom-up) approach with four linkage methods:
+
     - Single --> min distance
     - Complete --> max distance
     - Average --> mean distance
     - Ward --> minimizes total variance
-Dendrograms were used to visually cut the hierarchy into a specified number of clusters. 
+
+<div style="text-align: center;">
+  <img src="/pictures/Dendrograms for Hierarchical Clustering.png" alt="Dendrograms for Hierarchical Clustering" style="max-width: 100%; height: auto;">
+  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
+    Figure 4. Dendrograms for Hierarchical Clustering
+  </div>
+</div>
+
+Hierarchical clustering dendrograms with different cut points, illustrating how the data can be grouped into different numbers of clusters.
+
+- Dendrograms were used to visually cut the hierarchy into a specified number of clusters. 
 
 **6. Scaled vs Unscaled Clustering**
 
@@ -60,9 +106,10 @@ The effect of feature scaling was assessed by running hierarchical clustering on
 **7. Evaluation Metrics**
 
 To assess and compare the models:
-    - MSE and correlation were used to evaluate SVD-based imputation.
-    - Silhouette score and Within-Cluster Sum of Squares (WSS) used for K-Means performance.
-    - Confusion matrices were used to compare clustering outcomes with continent groupings and binary obesity class labels.
+
+- MSE and correlation were used to evaluate SVD-based imputation.
+- Silhouette score and Within-Cluster Sum of Squares (WSS) used for K-Means performance.
+- Confusion matrices were used to compare clustering outcomes with continent groupings and binary obesity class labels.
 
 ## METHODOLOGY {#methodology}
 
@@ -73,6 +120,15 @@ This study combined two datasets to investigate obesity patterns across countrie
 **Data Cleaning and Merging**
 
 The obesity dataset was filtered to include only adult entries by selecting rows where the age group began with “18.” Columns with numeric values were cleaned by replacing commas with periods and converting them to float type. The year column was standardized by extracting the four-digit year. Missing values were removed to ensure complete observations. The World Bank dataset was reshaped from wide to long format and then pivoted to transform each indicator into its own column. We selected the most recent year of data available for each country and merged the datasets using country names as the key. The resulting dataset included 51 countries with 13 relevant numeric features.
+
+**Handling of Missing Values**
+
+In the dataset used for analysis, missing values were removed during the data cleaning phase to ensure that only complete observations were retained for the final analysis. In the data cleaning and merging process, the datasets were merged based on country names, and rows with missing values were dropped to retain a clean dataset of 51 countries with 13 complete numeric features.
+However, to explore missing data imputation, missing values were simulated separately for the purpose of evaluating Singular Value Decomposition (SVD) based matrix completion:
+
+- Random missing values were introduced at rates ranging from 5% to 30% into the dataset.
+- Low-rank SVD matrix completion was applied to these artificially incomplete datasets, with ranks varying from 1 to 5.
+- The imputed values were evaluated against the original (known) values at the missing positions using Mean Squared Error (MSE) and Pearson correlation to measure recovery performance.
 
 **Standardization of Features**
 
@@ -115,104 +171,96 @@ The computational results for PCA, SVD, and Clustering are presented below. The 
 Singular value Decomposition helps to understand which parts of the data carry the most information.
 
 <div style="text-align: center;">
-  <img src="/pictures/Cumulative_Explained_Variance.png" alt="Cumulative Explained Variance" style="max-width: 100%; height: auto;">
+  <img src="/pictures/PCA Variance Explained_Cumulative and Individual.png" alt="PCA Variance Explained_Cumulative and Individual" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 1. Cumulative Explained Variance
+    Figure 5. PCA Variance Explained: Cumulative and Individual
   </div>
 </div>
 
-Figure 1 shows how many components we need to keep capturing most of the data's meaning. This helps reduce the data’s size without losing too much important detail. This SVD plot shows that we can keep just the first 5 components and still keep over 95% of the important information. This means we can make the data smaller and easier to work with, without losing much meaning.
+Figure 5 shows that the first few principal components capture the majority of the variance in the dataset. Specifically, the first principal component explains the largest proportion of variance individually, and the cumulative variance increases rapidly with the addition of the next few components. By the time five components are included, over 95% of the total variance is explained. This suggests that the dimensionality of the dataset can be significantly reduced without substantial loss of information, enabling more efficient analysis and visualization while preserving the essential structure of the data. 
 
 <div style="text-align: center;">
-  <img src="/pictures/Matrix_Completion_Error_vs_Missing_Data_of_Obesity_Dataset.png" alt="Matrix Completion Error vs Missing Data of Obesity Dataset" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Matrix Completion Error vs Missing Data of Obesity Dataset.png" alt="Matrix Completion Error vs Missing Data of Obesity Dataset" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 2. Matrix Completion Error vs Missing Data of Obesity Dataset
+    Figure 6. Matrix Completion Error vs Missing Data of Obesity Dataset
   </div>
 </div>
 
-Figure 2 shows that SVD can effectively recover missing data, especially when the missing rate is low. Using 3 components, rank = 3 gives the best overall results, with low error even when up to 30% of the data is missing. This suggests that a small number of components is enough to capture the key structure in the obesity dataset and reliably fill in missing values. 
+Figure 6 shows that SVD can effectively recover missing data, especially when the missing rate is low. Using 3 components, rank = 3 gives the best overall results, with low error even when up to 30% of the data is missing. This suggests that a small number of components is enough to capture the key structure in the obesity dataset and reliably fill in missing values. 
 
 <div style="text-align: center;">
-  <img src="/pictures/Correlation of Imputed vs True Values of Obesity Dataset.png" alt="Correlation of Imputed vs True Values of Obesity Dataset" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Correlation of Imputed vs True Values of Obesity Dataset1.png" alt="Correlation of Imputed vs True Values of Obesity Dataset1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 3. Correlation of Imputed vs True Values of Obesity Dataset
+    Figure 7. Correlation of Imputed vs True Values of Obesity Dataset
   </div>
 </div>
 
-Figure 3 shows that low-rank SVD can accurately guess missing values, especially when using 3 or 4 components. These ranks give strong and stable correlations with the true data, even as more values are missing. This means we can recover most of the important structure in the dataset using just a few key components.
+Figure 7 shows that low-rank SVD can accurately guess missing values, especially when using 3 or 4 components. These ranks give strong and stable correlations with the true data, even as more values are missing. This means we can recover most of the important structure in the dataset using just a few key components.
 
 **2. Principal Component Analysis**
 
 Principal Component Analysis shows how much information each component holds.
 
 <div style="text-align: center;">
-  <img src="/pictures/Scree Plot.png" alt="Scree Plot" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Scree Plot2.png" alt="Scree Plot2" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 4. Scree Plot
+    Figure 8. Scree Plot
   </div>
 </div>
 
 The scree plot, like SVD, helps determine the optimal number of components needed to simplify the data while preserving most of its information. We can see in the result, we only need about 4 components to keep most of the important information. This makes the data simpler and easier to work with without losing much meaning.
 
 <div style="text-align: center;">
-  <img src="/pictures/PCA Projection of Obesity and World Indicators.png" alt="PCA Projection of Obesity and World Indicators" style="max-width: 100%; height: auto;">
+  <img src="/pictures/PCA Projection of Obesity and World Indicators1.png" alt="PCA Projection of Obesity and World Indicators1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 5. PCA Projection of Obesity and World Indicators
+    Figure 9. PCA Projection of Obesity and World Indicators
   </div>
 </div>
 
-Figure 5 shows how countries compare based on obesity and world indicators using the top two PCA components. Countries with similar characteristics are grouped close together, while unique cases like Samoa or Qatar stand out, showing how different they are from the rest.
+Figure 9 shows the countries are projected onto the first two principal components derived from key socioeconomic and health indicators. Principal Component 1 primarily reflects economic development variables such as GDP per capita and health expenditure, while Principal Component 2 captures variations in obesity prevalence independent of wealth. The scatter plot highlights similarities and differences in country profiles based on these combined factors.
 
 **3. K-means Clustering**
 
 K-means clustering partitions data into K groups by minimizing the distance between data points and their corresponding cluster centroids.
 
 <div style="text-align: center;">
-  <img src="/pictures/Centroids and Country Labels.png" alt="Centroids and Country Labels" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Centroids and Country Labels1.png" alt="Centroids and Country Labels1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 6. Centroids and Country Labels
+    Figure 10. Centroids and Country Labels
   </div>
 </div>
 
-Figure 6 shows the groups of countries into 3 clusters based on similarities in obesity and related indicators. The resulting plot shows these clusters using male and female obesity rates, with each color representing a different group. The black X markers indicate the average obesity centroids for each cluster. Outliers like Tonga and Samoa stand out with exceptionally high obesity rates, while other countries form tighter groups with similar profiles.
+Figure 10 shows the grouping of countries into three clusters based on similarities in obesity rates, using plain data without dimensionality reduction. The clustering was performed directly on the male and female obesity percentages to maintain interpretability. The resulting plot displays these clusters with each color representing a different group, while the black 'X' markers indicate the cluster centroids. In other words, centroids indicate the average obesity rates for each group. Outliers like Tonga and Samoa stand out with exceptionally high obesity rates, whereas other countries form tighter clusters with more similar obesity profiles.
 
 <div style="text-align: center;">
-  <img src="/pictures/Obesity Comparison by Gender and Continent.png" alt="Obesity Comparison by Gender and Continent" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Obesity Comparison by Gender and Continent1.png" alt="Obesity Comparison by Gender and Continent1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 7. Obesity Comparison by Gender and Continent
+    Figure 11. Obesity Comparison by Gender and Continent
   </div>
 </div>
 
-Figure 7 shows the comparison of male and female obesity across continents (51 countries), revealing regional patterns and gender differences. It shows that while some continents have balanced obesity rates between men and women, Asia shows more variation.
+Figure 11 shows the comparison of male and female obesity across continents (51 countries), revealing regional patterns and gender differences. It shows that while some continents have balanced obesity rates between men and women, Asia shows more variation.
 
 <div style="text-align: center;">
-  <img src="/pictures/Cluster of Health, Economic, and Obesity Indicators.png" alt="Cluster of Health, Economic, and Obesity Indicators" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Cluster of Health, Economic, and Obesity Indicators1.png" alt="Cluster of Health, Economic, and Obesity Indicators1" style="width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 8. Cluster of Health, Economic, and Obesity Indicators
+    Figure 12. Cluster of Health, Economic, and Obesity Indicators
   </div>
 </div>
 
 This figure shows countries grouped into 3 meaningful clusters based on health spending, economic wealth, and obesity rates. This comparison plot shows that countries with higher health spending tend to have lower obesity rates, while those with moderate GDP and low spending show the highest obesity levels. 
 
 <div style="text-align: center;">
-  <img src="/pictures/Variance Explained by Components.png" alt="Variance Explained by Components" style="max-width: 100%; height: auto;">
+  <img src="/pictures/K-means Clustering in PCA Space1.png" alt="K-means Clustering in PCA Space1" style="width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 9. Variance Explained by Components
+    Figure 13. K-means Clustering in PCA Space
   </div>
 </div>
 
-This plot shows that just the first two components capture most of the information in the data, over 95%. This means we can reduce the dataset to 2 dimensions and still retain nearly all its important structure, making it easier to analyze and visualize without much information loss.
+This plot shows how K-Means divided countries into three distinct groups based on health, economy, and obesity patterns. While one group with green is large and diverse, another group with blue is more tightly packed, suggesting stronger similarity. The red group includes outliers or countries with unique profiles.
 
-<div style="text-align: center;">
-  <img src="/pictures/K-means Clustering in PCA Space.png" alt="K-means Clustering in PCA Space" style="max-width: 100%; height: auto;">
-  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 10. K-means Clustering in PCA Space
-  </div>
-</div>
 
-This plot shows how K-Means divided countries into three distinct groups based on health, economy, and obesity patterns. While one group with green is large and diverse, another group with blue is more tightly packed, suggesting stronger similarity. The red group includes outliers or countries with unique profiles. 
-
-|                | Cluster 0 | Cluster 1 | Cluster 2 |
+|                | Cluster 0   | Cluster 1   | Cluster 2   |
 |----------------|-------------|-------------|-------------|
 | **Obesity No** |      3      |      3      |     33      |
 | **Obesity Yes**|      1      |     11      |      0      |
@@ -224,80 +272,94 @@ This plot shows how K-Means divided countries into three distinct groups based o
 Table 1 shows that K-Means clustering does a good job separating obese and non-obese countries. Cluster 2 captures most non-obese cases, while Cluster 1 captures most obese ones. A small overlap in Cluster 0 suggests a few countries have mixed characteristics.
 
 <div style="text-align: center;">
-  <img src="/pictures/K-means Performance.png" alt="K-means Performance" style="max-width: 100%; height: auto;">
+  <img src="/pictures/K-means Performance1.png" alt="K-means Performance1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 11. K-means Performance
+    Figure 14.a. K-means Performance
   </div>
 </div>
-
-This plot suggests that k = 2 is the optimal number of clusters. It provides the highest silhouette score with best separation and a sharp drop in WSS, indicating meaningful and compact clusters. 
 
 <div style="text-align: center;">
-  <img src="/pictures/Comparison of Obese and Non-Obese Countries by Continent.png" alt="Comparison of Obese and Non-Obese Countries by Continent" style="max-width: 100%; height: auto;">
+  <img src="/pictures/PCA Projection of K-Means Clustering k=2.png" alt="PCA Projection of K-Means Clustering k=2" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 12. Comparison of Obese and Non-Obese Countries by Continent
+    Figure 14.b. PCA Projection of K-Means Clustering k=2
   </div>
 </div>
 
-Figure 12 shows that the proportion of obese countries where adult obesity is ≥ 30% is significantly higher in Africa, Asia, and South America compared to Europe. It is clear that Europe has no countries with high obesity. 
+<div style="text-align: center;">
+  <img src="/pictures/PCA Projection of K-Means Clustering k=6.png" alt="PCA Projection of K-Means Clustering k=6" style="max-width: 100%; height: auto;">
+  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
+    Figure 14.c. PCA Projection of K-Means Clustering k=6
+  </div>
+</div>
+
+Figure 14.a-c suggest that k = 2 provides the best-defined clusters, as indicated by the highest Silhouette Score. However, the WSS curve shows a noticeable elbow at k = 3 and a smaller improvement in cluster compactness beyond that point. Additionally, k = 6 shows a secondary improvement in the Silhouette Score compared to other higher k values, suggesting that it may capture finer sub-group structures. Finally, k = 2 appears optimal if the goal is to form well-separated, clearly defined clusters, while k = 3 or k = 6 may offer a balance between compactness and discovering more nuanced groupings. The final choice of k should depend on the specific application and desired granularity of the analysis.
+
+<div style="text-align: center;">
+  <img src="/pictures/Comparison of Obese and Non-Obese Countries by Continent1.png" alt="Comparison of Obese and Non-Obese Countries by Continent1" style="width: 100%; height: auto;">
+  <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
+    Figure 15. Comparison of Obese and Non-Obese Countries by Continent
+  </div>
+</div>
+
+Figure 15 shows that the proportion of obese countries (where adult obesity is ≥ 30%) is significantly higher in Africa, Asia, and South America compared to Europe. It is clear that Europe has no countries with high obesity.
 
 **4. Hierarchical Clustering**
 
 Dendrogram shows how data points are grouped step by step. This helps us see patterns in the data and explore groups at different levels, from broad to detailed.
 
 <div style="text-align: center;">
-  <img src="/pictures/Complete Linkage Dendrogram.png" alt="Complete Linkage Dendrogram" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Complete Linkage Dendrogram1.png" alt="Complete Linkage Dendrogram1" style="width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 13. Complete Linkage Dendrogram
+    Figure 16. Complete Linkage Dendrogram
   </div>
 </div>
 
 This dendrogram shows how 40 countries can be grouped based on health, economic, and obesity indicators. Some countries are very similar and cluster early, while others are quite different and only join at higher distances.
 
 <div style="text-align: center;">
-  <img src="/pictures/Average Linkage Dendrogram.png" alt="Average Linkage Dendrogram" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Average Linkage Dendrogram1.png" alt="Average Linkage Dendrogram1" style="width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 14. Average Linkage Dendrogram
+    Figure 17. Average Linkage Dendrogram
   </div>
 </div>
 
 This dendrogram using average linkage shows that the 40 countries can be grouped into 3 main clusters based on their health, economic, and obesity data. Countries in the same cluster are more similar to each other, while those merged at higher points are more different.
 
 <div style="text-align: center;">
-  <img src="/pictures/Single Linkage Dendrogram.png" alt="Single Linkage Dendrogram" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Single Linkage Dendrogram1.png" alt="Single Linkage Dendrogram1" style="width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 15. Single Linkage Dendrogram
+    Figure 18. Single Linkage Dendrogram
   </div>
 </div>
 
-Figure 15 shows that the 40 countries can be divided into 2 main groups based on health and economic indicators. Countries in the same group are more similar, while the two clusters are quite different from each other.
+Figure 18 shows that the 40 countries can be divided into 2 main groups based on health and economic indicators. Countries in the same group are more similar, while the two clusters are quite different from each other.
 
 <div style="text-align: center;">
-  <img src="/pictures/Ward Linkage Dendrogram.png" alt="Ward Linkage Dendrogram" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Ward Linkage Dendrogram1.png" alt="Ward Linkage Dendrogram1" style="width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 16. Ward Linkage Dendrogram
+    Figure 19. Ward Linkage Dendrogram
   </div>
 </div>
 
 This Ward linkage dendrogram shows that the 40 countries can be grouped into 3 main clusters based on similarities in health, economy, and obesity. Countries in the same cluster are more similar to each other, while those that merge higher up are more different.
 
 <div style="text-align: center;">
-  <img src="/pictures/Comparative Dendrograms.png" alt="Comparative Dendrograms" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Comparative Dendrograms1.png" alt="Comparative Dendrograms1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 17. Comparative Dendrograms
+    Figure 20. Comparative Dendrograms
   </div>
 </div>
 
-Figure 17 shows the results of the four linkage methods. Among them, Ward and Complete linkage produce the clearest and most balanced groupings of countries. Average linkage gives acceptable results, but Single linkage is less useful, as it tends to form long, messy chains rather than distinct clusters. Overall, Ward linkage appears to be the most effective choice in this context.
+Figure 20 shows the results of the four linkage methods. Among them, Ward and Complete linkage produce the clearest and most balanced groupings of countries. Average linkage gives acceptable results, but Single linkage is less useful, as it tends to form long, messy chains rather than distinct clusters. Overall, Ward linkage appears to be the most effective choice in this context.
 
 <div style="text-align: center;">
-  <img src="/pictures/Cut Dendrogram with 5 Clusters.png" alt="Cut Dendrogram with 5 Clusters" style="max-width: 100%; height: auto;">
+  <img src="/pictures/Cut Dendrogram with 5 Clusters1.png" alt="Cut Dendrogram with 5 Clusters1" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
-    Figure 18. Cut Dendrogram with 5 Clusters
+    Figure 21. Cut Dendrogram with 5 Clusters
   </div>
 </div>
 
-The dendrogram groups 40 countries into five clusters based on similarities in GDP per capita, health expenditure, and adult obesity rates. Countries with high economic development and health investment, such as Qatar, the United Arab Emirates, and Italy, form separate clusters where Qatar alone in Cluster 5 and UAE with Italy in Cluster 4 indicating they differ significantly from others. Cluster 3 includes Saudi Arabia, Oman, Bahrain, and Panama, which share moderate-to-high development levels. Cluster 1 contains only Tonga and Samoa, likely due to regional or economic similarities. The largest group, Cluster 2, includes countries like Uganda, Sri Lanka, Morocco, and Brazil, which are more similar in having lower or moderate GDP and health spending. Overall, the dendrogram shows how countries naturally group based on shared economic and health characteristics.
+The dendrogram groups 40 countries into five clusters based on similarities in GDP per capita, health expenditure, and adult obesity rates. Countries with high economic development and health investment, such as Qatar, the United Arab Emirates, and Italy, form distinct clusters, with Qatar alone in Cluster 5 and the UAE grouped with Italy in Cluster 4, indicating significant differences from other countries. Cluster 3 includes Saudi Arabia, Oman, Bahrain, and Panama, which share moderate-to-high levels of development and health spending. Cluster 1 contains only Tonga and Samoa, likely due to shared regional or socioeconomic characteristics. The largest group, Cluster 2, includes countries like Uganda, Sri Lanka, Morocco, and Brazil, characterized by lower or moderate GDP and health expenditures. Overall, the dendrogram effectively illustrates how countries naturally cluster based on shared economic and health-related indicators.
 
 | Predicted Cluster | Cluster 0 | Cluster 1 |
 |-------------------|-----------|-----------|
@@ -331,7 +393,16 @@ The scree plot generated from Principal Component Analysis (PCA) showed that the
 
 **Interpretation of U and V* (SVD) or X and Rotation (PCA)**
 
-In the context of SVD, the U matrix represents the projection of countries by observations onto the latent components. This can be interpreted as how each country contributes to different hidden patterns in the data. The V* reflects how each original variable contributes to those components. If a component has high weights for both health expenditure and GDP, that component may have a chance of representing as economic development. 
+In the context of Singular Value Decomposition (SVD), the data matrix X is decomposed as X = UΣV*, where:
+
+- U (Left Singular Vectors): Each row in U represents a country’s coordinates in the latent component space. It describes how strongly each country is associated with the underlying patterns or structures identified in the data. High or low values in U rows show how countries align along the latent axes, such as economic development and health spending.
+- V* (Right Singular Vectors): Each column of V* shows how much each original variable contributes to each latent component. For example, if GDP and health expenditure have high loadings on the first component, this component may represent a latent "economic development" factor.
+
+In PCA, a similar interpretation holds:
+
+- Principal components are linear combinations of the original features (like the columns of V*).
+- Scores (equivalent to UΣ) represent the projection of countries onto these new principal component axes.
+Thus, U and V* together reveal both the structure among countries and how variables contribute to the key dimensions of variation.
 
 **Structure in the PCA Projection**
 
