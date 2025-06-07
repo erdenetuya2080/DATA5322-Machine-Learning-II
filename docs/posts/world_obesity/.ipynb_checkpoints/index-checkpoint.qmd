@@ -6,7 +6,7 @@ author:
   - name: Erdenetuya Namsrai
     email: enamsrai@seattleu.edu
     
-date: 2025-06-06
+date: 2025-05-24
 categories: [Unsupervised Learning, PCA, Clustering]
 format:
   html: default
@@ -65,7 +65,6 @@ K-Means is a simple yet powerful clustering algorithm that groups data points in
   <img src="/pictures/Cluster Analysis.png" alt="Cluster Analysis" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
     Figure 3. Cluster Analysis
-    Source: An introduction to statistical learning with applications in R 
   </div>
 </div>
 
@@ -93,7 +92,6 @@ Hierarchical clustering creates a dendrogram which is tree-like structure to sho
   <img src="/pictures/Dendrograms for Hierarchical Clustering.png" alt="Dendrograms for Hierarchical Clustering" style="max-width: 100%; height: auto;">
   <div style="text-align: center; font-style: italic; font-size: 0.9em; margin-top: 0.5em;">
     Figure 4. Dendrograms for Hierarchical Clustering
-    Source: An introduction to statistical learning with applications in R 
   </div>
 </div>
 
